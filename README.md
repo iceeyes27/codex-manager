@@ -1,5 +1,7 @@
 # Codex Manager
 
+![Codex Manager Preview](./docs/preview.png)
+
 桌面版多账号 Codex 管理器。目标是解决两个问题：
 
 - 多个 OpenAI/Codex 账号之间快速切换
