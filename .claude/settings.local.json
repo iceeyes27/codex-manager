@@ -4,7 +4,9 @@
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebSearch",
-      "WebFetch(domain:zread.ai)"
+      "WebFetch(domain:zread.ai)",
+      "Read(//c/Users/Administrator/.claude/.ccg/prompts/codex/**)",
+      "Read(//c/Users/Administrator/.claude/.ccg/prompts/gemini/**)"
     ]
   }
 }
