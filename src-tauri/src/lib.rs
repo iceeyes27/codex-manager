@@ -217,6 +217,7 @@ fn position_tray_panel(window: &tauri::WebviewWindow, anchor: &Rect) {
     let monitor_top = monitor_position.y;
     let monitor_right = monitor_left + i32::try_from(monitor_size.width).unwrap_or(0);
     let monitor_bottom = monitor_top + i32::try_from(monitor_size.height).unwrap_or(0);
+    #[cfg(not(target_os = "macos"))]
     let anchor_edge = detect_anchor_edge(
         anchor_position,
         tray_width,
@@ -318,18 +319,19 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let tray_controller = Arc::new(Mutex::new(TrayPanelController::default()));
-            let tray_window =
+            let tray_window_builder =
                 WebviewWindowBuilder::new(app, "tray", WebviewUrl::App("index.html#tray".into()))
                     .title("Codex Manager Tray")
                     .inner_size(540.0, 640.0)
                     .resizable(false)
                     .visible(false)
-                    .transparent(true)
                     .shadow(false)
                     .skip_taskbar(true)
                     .always_on_top(true)
-                    .decorations(false)
-                    .build()?;
+                    .decorations(false);
+            #[cfg(target_os = "windows")]
+            let tray_window_builder = tray_window_builder.transparent(true);
+            let tray_window = tray_window_builder.build()?;
             let tray_window_for_events = tray_window.clone();
             let blur_state = Arc::clone(&tray_controller);
             tray_window.on_window_event(move |event| {

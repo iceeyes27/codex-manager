@@ -1,8 +1,10 @@
 use std::{
     env,
     path::{Path, PathBuf},
-    process::Command,
 };
+
+#[cfg(target_os = "windows")]
+use std::process::Command;
 
 use crate::models::DesktopPlatformCapabilities;
 
