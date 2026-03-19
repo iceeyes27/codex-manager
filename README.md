@@ -8,7 +8,15 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/davaded/codex-manager/release.yml?branch=main)](https://github.com/davaded/codex-manager/actions)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)](#installation)
 
+## UI Preview
+
+主窗口：
+
 ![Codex Manager Preview](./docs/preview.png)
+
+托盘快速面板（小窗快速切号/刷新用量）：
+
+![Tray Panel Demo](./docs/tray-panel-demo.png)
 
 ## Why（为什么做这个）
 
@@ -86,9 +94,7 @@ Releases：https://github.com/davaded/codex-manager/releases
 
 ## 托盘快速面板
 
-桌面端现在会创建系统托盘图标，并提供一块快速面板。
-
-![Tray Panel Demo](./docs/tray-panel-demo.png)
+桌面端会创建系统托盘图标，并提供一块快速面板。
 
 当前托盘能力：
 
@@ -187,7 +193,7 @@ cargo check
 ## Roadmap（路线图）
 
 - [ ] macOS / Linux 实机验证与打包
-- [ ] OAuth 打开浏览器：从 `tauri-plugin-shell` 迁移到 `tauri-plugin-opener`
+- [ ] OAuth 打开浏览器的实现从 `tauri-plugin-shell` 迁移到 `tauri-plugin-opener`
 - [ ] 更完善的错误诊断（端口占用、权限不足、auth/sessions 目录异常等）
 - [ ] 更细的托盘定位与平台特化体验
 
