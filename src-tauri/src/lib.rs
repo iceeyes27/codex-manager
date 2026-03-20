@@ -316,6 +316,7 @@ fn toggle_tray_panel(
 pub fn run() {
     tauri::Builder::default()
         .manage(SwitchLock::default())
+        .manage(oauth::OAuthFlowManager::default())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             let tray_controller = Arc::new(Mutex::new(TrayPanelController::default()));
@@ -418,6 +419,7 @@ pub fn run() {
             usage::read_account_rate_limits,
             // oauth
             oauth::start_oauth_flow,
+            oauth::cancel_oauth_flow,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -9,7 +9,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use tauri_plugin_shell::ShellExt;
 use tokio::sync::{oneshot, Mutex};
 
@@ -74,20 +74,63 @@ struct CallbackState {
     expected_state: String,
 }
 
+pub struct OAuthFlowManager(Mutex<Option<Arc<CallbackState>>>);
+
+impl Default for OAuthFlowManager {
+    fn default() -> Self {
+        Self(Mutex::new(None))
+    }
+}
+
+async fn send_result(
+    state: &Arc<CallbackState>,
+    result: Result<(String, String), String>,
+) {
+    let mut tx = state.result_tx.lock().await;
+    if let Some(sender) = tx.take() {
+        let _ = sender.send(result);
+    }
+}
+
+async fn shutdown_flow(state: &Arc<CallbackState>) {
+    let mut sd = state.shutdown_tx.lock().await;
+    if let Some(tx) = sd.take() {
+        let _ = tx.send(());
+    }
+}
+
+async fn finish_flow(
+    state: &Arc<CallbackState>,
+    result: Result<(String, String), String>,
+) {
+    send_result(state, result).await;
+    shutdown_flow(state).await;
+}
+
+async fn set_active_flow(app: &AppHandle, state: Option<Arc<CallbackState>>) {
+    let manager = app.state::<OAuthFlowManager>();
+    let mut active = manager.0.lock().await;
+    *active = state;
+}
+
+async fn clear_active_flow(app: &AppHandle, state: &Arc<CallbackState>) {
+    let manager = app.state::<OAuthFlowManager>();
+    let mut active = manager.0.lock().await;
+    if active
+        .as_ref()
+        .is_some_and(|current| Arc::ptr_eq(current, state))
+    {
+        *active = None;
+    }
+}
+
 async fn callback_handler(
     Query(params): Query<HashMap<String, String>>,
     State(state): State<Arc<CallbackState>>,
 ) -> Html<String> {
     let error = params.get("error").cloned();
     if let Some(err) = error {
-        let mut tx = state.result_tx.lock().await;
-        if let Some(sender) = tx.take() {
-            let _ = sender.send(Err(format!("OAuth error: {}", err)));
-        }
-        let mut sd = state.shutdown_tx.lock().await;
-        if let Some(s) = sd.take() {
-            let _ = s.send(());
-        }
+        finish_flow(&state, Err(format!("OAuth error: {}", err))).await;
         return Html("<h1>Authorization failed. You may close this window.</h1>".to_string());
     }
 
@@ -95,25 +138,11 @@ async fn callback_handler(
     let received_state = params.get("state").cloned().unwrap_or_default();
 
     if received_state != state.expected_state {
-        let mut tx = state.result_tx.lock().await;
-        if let Some(sender) = tx.take() {
-            let _ = sender.send(Err("CSRF state mismatch".to_string()));
-        }
-        let mut sd = state.shutdown_tx.lock().await;
-        if let Some(s) = sd.take() {
-            let _ = s.send(());
-        }
+        finish_flow(&state, Err("CSRF state mismatch".to_string())).await;
         return Html("<h1>Security error. You may close this window.</h1>".to_string());
     }
 
-    let mut tx = state.result_tx.lock().await;
-    if let Some(sender) = tx.take() {
-        let _ = sender.send(Ok((code, received_state)));
-    }
-    let mut sd = state.shutdown_tx.lock().await;
-    if let Some(s) = sd.take() {
-        let _ = s.send(());
-    }
+    finish_flow(&state, Ok((code, received_state))).await;
 
     Html("<h1>Authorization complete! You may close this window.</h1>".to_string())
 }
@@ -165,6 +194,13 @@ async fn exchange_code(
 
 #[tauri::command]
 pub async fn start_oauth_flow(app: AppHandle) -> Result<OAuthResult, String> {
+    {
+        let manager = app.state::<OAuthFlowManager>();
+        if manager.0.lock().await.is_some() {
+            return Err("已有一个授权流程正在进行".to_string());
+        }
+    }
+
     let code_verifier = generate_code_verifier();
     let code_challenge = generate_code_challenge(&code_verifier);
     let state_token = generate_state();
@@ -182,11 +218,13 @@ pub async fn start_oauth_flow(app: AppHandle) -> Result<OAuthResult, String> {
 
     let router = Router::new()
         .route("/auth/callback", get(callback_handler))
-        .with_state(callback_state);
+        .with_state(callback_state.clone());
 
     let listener = tokio::net::TcpListener::bind(format!("127.0.0.1:{}", CALLBACK_PORT))
         .await
         .map_err(|e| format!("Port {} already in use: {}", CALLBACK_PORT, e))?;
+
+    set_active_flow(&app, Some(callback_state.clone())).await;
 
     let server = tokio::spawn(async move {
         axum::serve(listener, router)
@@ -196,17 +234,6 @@ pub async fn start_oauth_flow(app: AppHandle) -> Result<OAuthResult, String> {
             .await
             .ok();
     });
-
-    // Helper: send shutdown signal (idempotent)
-    let shutdown = |state: &Arc<CallbackState>| {
-        let state = state.clone();
-        async move {
-            let mut sd = state.shutdown_tx.lock().await;
-            if let Some(tx) = sd.take() {
-                let _ = tx.send(());
-            }
-        }
-    };
 
     // Build authorization URL
     let auth_url = format!(
@@ -220,8 +247,9 @@ pub async fn start_oauth_flow(app: AppHandle) -> Result<OAuthResult, String> {
 
     // If browser fails to open, shut down the server immediately
     if let Err(e) = app.shell().open(&auth_url, None) {
-        shutdown(&cleanup_state).await;
+        shutdown_flow(&cleanup_state).await;
         let _ = server.await;
+        clear_active_flow(&app, &cleanup_state).await;
         return Err(format!("Failed to open browser: {}", e));
     }
 
@@ -230,8 +258,9 @@ pub async fn start_oauth_flow(app: AppHandle) -> Result<OAuthResult, String> {
         tokio::time::timeout(tokio::time::Duration::from_secs(300), result_rx).await;
 
     // Always shut down the server regardless of outcome
-    shutdown(&cleanup_state).await;
+    shutdown_flow(&cleanup_state).await;
     let _ = server.await;
+    clear_active_flow(&app, &cleanup_state).await;
 
     let (code, _) = callback_result
         .map_err(|_| "OAuth timed out after 5 minutes".to_string())?
@@ -264,6 +293,22 @@ pub async fn start_oauth_flow(app: AppHandle) -> Result<OAuthResult, String> {
         email,
         user_id,
     })
+}
+
+#[tauri::command]
+pub async fn cancel_oauth_flow(app: AppHandle) -> Result<(), String> {
+    let active_flow = {
+        let manager = app.state::<OAuthFlowManager>();
+        let active = manager.0.lock().await.clone();
+        active
+    };
+
+    let Some(flow) = active_flow else {
+        return Ok(());
+    };
+
+    finish_flow(&flow, Err("OAuth flow cancelled by user".to_string())).await;
+    Ok(())
 }
 
 /// Minimal percent-encoding for redirect_uri (replaces `:`, `/`, spaces)

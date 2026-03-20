@@ -368,6 +368,9 @@ const browserApi = {
       userId: `mock-${stamp}`,
     };
   },
+  async cancelOauthFlow(): Promise<void> {
+    return;
+  },
   async getCodexDir(): Promise<string> {
     return "~/.codex";
   },
@@ -422,6 +425,7 @@ export const api = isTauriRuntime
 
       // oauth
       startOauthFlow: () => invoke<OAuthResult>("start_oauth_flow"),
+      cancelOauthFlow: () => invoke<void>("cancel_oauth_flow"),
 
       // paths
       getCodexDir: () => invoke<string>("get_codex_dir"),

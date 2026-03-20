@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import { useAccountStore } from "../store/accountStore";
 import { api } from "../utils/invoke";
@@ -9,6 +9,30 @@ const AddAccountModal: React.FC = () => {
   const { setAddModalOpen, accounts, setAccounts, showToast } = useAccountStore();
   const [loading, setLoading] = useState(false);
   const [displayName, setDisplayName] = useState("");
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
+
+  const isOauthCancelledError = (message: string) =>
+    /cancelled|canceled|取消/i.test(message);
+
+  const handleCancel = async () => {
+    if (loading) {
+      try {
+        await api.cancelOauthFlow();
+      } catch {
+        // The modal is closing anyway, so ignore cancellation transport errors here.
+      }
+    }
+
+    if (isMountedRef.current) {
+      setAddModalOpen(false);
+    }
+  };
 
   const handleAdd = async () => {
     if (!displayName.trim()) {
@@ -38,11 +62,18 @@ const AddAccountModal: React.FC = () => {
       await api.saveAccounts({ version: "1.0", accounts: next });
 
       showToast("账户添加成功");
-      setAddModalOpen(false);
+      if (isMountedRef.current) {
+        setAddModalOpen(false);
+      }
     } catch (err: unknown) {
-      showToast(`添加失败: ${err instanceof Error ? err.message : String(err)}`);
+      const message = err instanceof Error ? err.message : String(err);
+      if (!isOauthCancelledError(message)) {
+        showToast(`添加失败: ${message}`);
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   };
 
@@ -91,10 +122,10 @@ const AddAccountModal: React.FC = () => {
 
           <div className="flex justify-end gap-3 pt-2">
             <button
-              onClick={() => setAddModalOpen(false)}
+              onClick={handleCancel}
               className="rounded-2xl px-5 py-3 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100"
             >
-              取消
+              {loading ? "取消授权" : "取消"}
             </button>
             <button
               onClick={handleAdd}
