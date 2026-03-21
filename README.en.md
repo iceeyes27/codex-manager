@@ -1,6 +1,6 @@
 # Codex Manager
 
-A desktop manager for switching between multiple OpenAI/Codex accounts without breaking your active Codex session flow.
+A desktop account manager for switching between multiple OpenAI/Codex accounts without breaking your current Codex session flow.
 
 [简体中文](./README.md)
 
@@ -10,7 +10,7 @@ A desktop manager for switching between multiple OpenAI/Codex accounts without b
 [![CI](https://img.shields.io/github/actions/workflow/status/davaded/codex-manager/release.yml?branch=main)](https://github.com/davaded/codex-manager/actions)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-blue)](#installation)
 
-## UI Preview
+## Preview
 
 Main window:
 
@@ -32,6 +32,8 @@ Codex Manager reduces both to a few desktop and tray actions.
 ## Features
 
 - Add accounts with OAuth or import the current `~/.codex/auth.json`
+- Detect when the current live auth belongs to an unmanaged account
+- Import the current live auth with one click
 - Keep the shared `~/.codex/sessions` working set intact when switching
 - Read real 5-hour and weekly quota usage
 - Refresh usage globally or per account
@@ -39,74 +41,81 @@ Codex Manager reduces both to a few desktop and tray actions.
 - Use a translucent tray panel for quick switching
 - Optionally restart the Codex desktop app after switching
 - Export backups and persist app settings
+- Switch managed accounts from the command line with `codex-manager`
 
 ## Installation
 
-> Recommended: download a packaged build from GitHub Releases.
+Recommended: download a packaged build from GitHub Releases.
 
 - Windows: `.msi` or `.exe`
 - macOS: `.pkg` or `.dmg`
-- Linux: `.AppImage`, `.deb`, or `.rpm` depending on the release target
+- Linux: `.deb`, `.rpm`, or `.AppImage`
 
-Releases: https://github.com/davaded/codex-manager/releases
+Releases: <https://github.com/davaded/codex-manager/releases>
 
-### Notes
+### CLI Availability
 
-- On first launch, your OS may ask you to confirm that the app is safe to open.
+After installation, the `codex-manager` command behaves like this:
+
+| Platform | Recommended package | CLI availability |
+| --- | --- | --- |
+| Windows | `.exe` or `.msi` | Installed to `PATH` automatically |
+| macOS | `.pkg` | Linked to `/usr/local/bin/codex-manager` automatically |
+| macOS | `.dmg` | Use the bundled helper script once |
+| Linux | `.deb` or `.rpm` | Available directly as `codex-manager` |
+| Linux | `.AppImage` | Use the helper script once, or keep it portable |
+
+Notes:
+
+- On Windows, reopen your terminal after installation so the new `PATH` is picked up.
+- On macOS, prefer the `.pkg` build if you want `codex-manager` available immediately in Terminal.
+- On Linux, prefer `.deb` or `.rpm` if you want a package-managed CLI experience.
 - The app reads and writes `~/.codex/auth.json`, so Codex CLI should already be installed and working.
-- On Windows, reopen your terminal after installation so the new `codex-manager` command is picked up from `PATH`.
-- On macOS, prefer the `.pkg` build if you want `codex-manager` available in Terminal immediately after install.
-- On Linux, prefer `.deb` or `.rpm` if you want a package-managed `codex-manager` command. `.AppImage` remains portable by design.
+
+## Command Line Switching
+
+You can switch managed accounts from the command line:
+
+```bash
+codex-manager list
+codex-manager switch work
+codex-manager switch dev@company.com
+codex-manager switch 2
+```
+
+The CLI updates both the managed `accounts.json` state and the live `~/.codex/auth.json`.
+
+If Codex CLI or the desktop app is already running, restart it after switching so the new auth takes effect.
+
+For `.dmg` and `.AppImage` installs, the release helper script can expose the command globally:
+
+```bash
+sudo bash ./install-unix-cli.sh /Applications/codex-manager.app /usr/local/bin/codex-manager
+```
+
+If you are running from the repo locally, you can still expose the Node-based dev CLI with:
+
+```bash
+npm link
+```
 
 ## Quick Start
 
 1. Launch Codex Manager.
 2. Import the current auth or add an account via OAuth.
 3. Refresh usage.
-4. Switch manually or use Smart Switch.
-
-## Command Line Switching
-
-You can also switch managed accounts from the command line:
-
-```bash
-codex-manager list
-codex-manager switch work
-codex-manager switch dev@company.com
-```
-
-The CLI updates both the managed `accounts.json` state and the live `~/.codex/auth.json`.
-
-Just like the desktop flow, if Codex CLI or the desktop app is already running, restart it after switching so the new auth takes effect.
-
-Packaged builds expose the command like this:
-
-- Windows `.exe` / `.msi`: the installer adds `codex-manager` to `PATH`
-- macOS `.pkg`: the installer places `codex-manager` in `/usr/local/bin`
-- macOS `.dmg`: use the release helper script or create the symlink yourself
-- Linux `.deb` / `.rpm`: the package-installed binary is available directly as `codex-manager`
-- Linux `.AppImage`: use the release helper script to install a symlink, or keep it portable
-
-```bash
-sudo bash ./install-unix-cli.sh /Applications/codex-manager.app /usr/local/bin/codex-manager
-```
-
-If you are running from the repo locally, you can expose the command with:
-
-```bash
-npm link
-```
+4. Switch manually, use Smart Switch, or use `codex-manager switch ...`.
 
 ## Active Account Detection
 
-The app reads `~/.codex/auth.json` and identifies the active account in this order:
+The app reads `~/.codex/auth.json` and identifies the current account in this order:
 
 1. `email`
 2. `userId`
 3. `chatgpt_account_id` from saved credentials
 4. `refresh_token / access_token / id_token`
 
-This keeps the active state accurate even when saved credentials lag behind.
+If the live auth does not match any managed account but still contains a recognizable identity, the app shows it as an unmanaged current account instead of incorrectly keeping an old managed account active.
 
 ## Import Current Auth
 
@@ -141,19 +150,7 @@ Current tray behavior:
 - Clicking outside the panel hides it
 - Tray menu interactions do not accidentally reopen the panel
 - The floating panel stays close to the tray area with platform-specific positioning
-- The menu supports:
-  - Open tray panel
-  - Open main window
-  - Hide tray panel
-  - Quit
-- Inside the panel you can:
-  - Import current auth
-  - Run Smart Switch
-  - Refresh usage
-  - View all accounts and switch quickly
-  - Check lightweight two-column account cards with quota status
-
-The tray panel is a lightweight floating surface for quick switching, not a replacement for the full main window.
+- You can import current auth, run Smart Switch, refresh usage, and switch quickly from the tray
 
 ## How It Works
 
@@ -173,14 +170,6 @@ Stability safeguards:
 - Local persistence failures do not incorrectly mark the switch as failed
 - Auto-restart shows a confirmation dialog
 - Auto-restart failure does not undo the account switch
-
-## Quota Source
-
-Quota values are not estimated by default.
-
-The app uses each account's own `access_token + ChatGPT-Account-Id` to query web-side usage endpoints and read real quota windows plus reset times.
-
-If a request fails, the UI shows the failure reason.
 
 ## Data and Paths
 
@@ -236,20 +225,6 @@ cargo check
 - Migrate OAuth browser opening from `tauri-plugin-shell` to `tauri-plugin-opener`
 - Better diagnostics for port conflicts, permissions, and auth/session directory errors
 - More refined tray positioning and platform-specific desktop behavior
-
-## Contributing
-
-PRs and issues are welcome.
-
-Recommended checks before submitting:
-
-- `npm run build`
-- `cargo check` in `src-tauri`
-
-If you change switching logic or data migration behavior, document:
-
-- How failures are rolled back
-- Whether existing local data structures are affected
 
 ## Security Notes
 
