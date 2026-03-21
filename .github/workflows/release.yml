@@ -57,3 +57,14 @@ jobs:
           releaseBody: "See the assets to download and install this version."
           releaseDraft: false
           prerelease: false
+
+      - name: Build macOS pkg
+        if: matrix.platform == 'macos-latest'
+        run: bash scripts/build-macos-pkg.sh
+
+      - name: Upload macOS pkg and Unix helper
+        if: matrix.platform == 'macos-latest' && startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" src-tauri/target/release/bundle/pkg/*.pkg scripts/install-unix-cli.sh --clobber

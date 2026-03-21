@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+
+APP_PATH="/Applications/codex-manager.app"
+SCRIPT_PATH="$APP_PATH/Contents/Resources/install-unix-cli.sh"
+APP_BINARY="$APP_PATH/Contents/MacOS/codex-manager"
+LINK_PATH="/usr/local/bin/codex-manager"
+
+if [ -x "$SCRIPT_PATH" ]; then
+  "$SCRIPT_PATH" "$APP_PATH" "$LINK_PATH"
+  exit 0
+fi
+
+if [ ! -x "$APP_BINARY" ]; then
+  echo "Skipping CLI install because app binary was not found: $APP_BINARY" >&2
+  exit 0
+fi
+
+mkdir -p "$(dirname "$LINK_PATH")"
+ln -sfn "$APP_BINARY" "$LINK_PATH"

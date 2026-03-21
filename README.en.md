@@ -45,7 +45,7 @@ Codex Manager reduces both to a few desktop and tray actions.
 > Recommended: download a packaged build from GitHub Releases.
 
 - Windows: `.msi` or `.exe`
-- macOS: `.dmg`
+- macOS: `.pkg` or `.dmg`
 - Linux: `.AppImage`, `.deb`, or `.rpm` depending on the release target
 
 Releases: https://github.com/davaded/codex-manager/releases
@@ -55,6 +55,8 @@ Releases: https://github.com/davaded/codex-manager/releases
 - On first launch, your OS may ask you to confirm that the app is safe to open.
 - The app reads and writes `~/.codex/auth.json`, so Codex CLI should already be installed and working.
 - On Windows, reopen your terminal after installation so the new `codex-manager` command is picked up from `PATH`.
+- On macOS, prefer the `.pkg` build if you want `codex-manager` available in Terminal immediately after install.
+- On Linux, prefer `.deb` or `.rpm` if you want a package-managed `codex-manager` command. `.AppImage` remains portable by design.
 
 ## Quick Start
 
@@ -80,12 +82,13 @@ Just like the desktop flow, if Codex CLI or the desktop app is already running, 
 Packaged builds expose the command like this:
 
 - Windows `.exe` / `.msi`: the installer adds `codex-manager` to `PATH`
+- macOS `.pkg`: the installer places `codex-manager` in `/usr/local/bin`
+- macOS `.dmg`: use the release helper script or create the symlink yourself
 - Linux `.deb` / `.rpm`: the package-installed binary is available directly as `codex-manager`
-- Linux `.AppImage`: create your own launcher or symlink if you want a global `codex-manager` command
-- macOS `.dmg`: drag-and-drop installs cannot modify your shell `PATH`, so create a symlink once:
+- Linux `.AppImage`: use the release helper script to install a symlink, or keep it portable
 
 ```bash
-sudo ln -sf "/Applications/codex-manager.app/Contents/MacOS/codex-manager" /usr/local/bin/codex-manager
+sudo bash ./install-unix-cli.sh /Applications/codex-manager.app /usr/local/bin/codex-manager
 ```
 
 If you are running from the repo locally, you can expose the command with:
@@ -229,7 +232,7 @@ cargo check
 
 ## Roadmap
 
-- macOS and Linux validation and packaging
+- More real-device validation for macOS and Linux installers
 - Migrate OAuth browser opening from `tauri-plugin-shell` to `tauri-plugin-opener`
 - Better diagnostics for port conflicts, permissions, and auth/session directory errors
 - More refined tray positioning and platform-specific desktop behavior
@@ -258,5 +261,5 @@ If you change switching logic or data migration behavior, document:
 
 - OAuth browser opening still uses the deprecated `tauri-plugin-shell` `open` API
 - Automatic Codex desktop restart is currently implemented and verified only on Windows
-- Most validation so far has happened on Windows; macOS and Linux still need more real-device testing
+- Most end-to-end installer validation so far has happened on Windows; macOS and Linux still need more real-device testing
 - Browser-only preview mode still keeps mock fallback behavior for UI inspection
