@@ -3,6 +3,7 @@ import {
   formatRelativeTime,
   getAccountInsight,
   getBestQuotaAccount,
+  getHourlyUsageEfficiency,
   getRecommendedAccountId,
 } from "../src/utils/dashboard";
 import type { Account } from "../src/types";
@@ -106,6 +107,61 @@ describe("quota ranking", () => {
     const account = createAccount({ rateLimits: null });
     expect(getRecommendedAccountId([account])).toBeNull();
     expect(getBestQuotaAccount([account])).toBeNull();
+  });
+});
+
+describe("getHourlyUsageEfficiency", () => {
+  it("calculates balanced usage when consumption roughly matches elapsed time", () => {
+    const now = new Date("2026-03-11T10:00:00Z").getTime();
+    const account = createAccount({
+      rateLimits: {
+        planType: "plus",
+        primary: {
+          usedPercent: 48,
+          resetsAt: Math.floor(new Date("2026-03-11T12:30:00Z").getTime() / 1000),
+          windowDurationMins: 300,
+        },
+      },
+    });
+
+    const efficiency = getHourlyUsageEfficiency(account, now);
+
+    expect(efficiency.status).toBe("balanced");
+    expect(efficiency.score).toBeGreaterThan(90);
+    expect(efficiency.score).toBeLessThan(110);
+  });
+
+  it("marks low-efficiency windows as underused", () => {
+    const now = new Date("2026-03-11T10:00:00Z").getTime();
+    const account = createAccount({
+      rateLimits: {
+        planType: "plus",
+        primary: {
+          usedPercent: 20,
+          resetsAt: Math.floor(new Date("2026-03-11T11:00:00Z").getTime() / 1000),
+          windowDurationMins: 300,
+        },
+      },
+    });
+
+    const efficiency = getHourlyUsageEfficiency(account, now);
+
+    expect(efficiency.status).toBe("underused");
+    expect(efficiency.score).toBeLessThan(70);
+  });
+
+  it("returns unavailable when required window fields are missing", () => {
+    const efficiency = getHourlyUsageEfficiency(
+      createAccount({
+        rateLimits: {
+          planType: "plus",
+          primary: { usedPercent: 20 },
+        },
+      }),
+    );
+
+    expect(efficiency.status).toBe("unavailable");
+    expect(efficiency.score).toBeNull();
   });
 });
 

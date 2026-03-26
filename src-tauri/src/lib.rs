@@ -414,6 +414,7 @@ pub fn run() {
             sessions::switch_account,
             sessions::list_account_session_info,
             sessions::get_current_sessions_info,
+            sessions::read_usage_stats_summary,
             sessions::delete_account_sessions,
             desktop::resume_session_in_terminal,
             desktop::restart_codex_desktop,

@@ -1,8 +1,10 @@
 import React, { Suspense, useEffect, useState } from "react";
 import { clsx } from "clsx";
+import { motion, useReducedMotion } from "motion/react";
 import { Account } from "../types";
 import { useAccountStore } from "../store/accountStore";
 import { formatRelativeTime, getAccountInsight } from "../utils/dashboard";
+import { hoverLift } from "../utils/motion";
 
 const UsageChart = React.lazy(() => import("./UsageChart"));
 
@@ -11,6 +13,7 @@ interface AccountCardProps {
   isRecommended: boolean;
   isRefreshing: boolean;
   isRefreshingSelf: boolean;
+  variant?: "default" | "featured" | "compact";
   onDelete: (id: string) => void;
   onRefresh: () => Promise<void>;
   onRename: (id: string, displayName: string) => Promise<void>;
@@ -18,13 +21,13 @@ interface AccountCardProps {
 }
 
 const ROLE_STYLES = {
-  plus: "border-violet-200 bg-violet-50 text-violet-700",
-  pro: "border-amber-200 bg-amber-50 text-amber-700",
-  team: "border-blue-200 bg-blue-50 text-blue-700",
-  enterprise: "border-slate-300 bg-slate-100 text-slate-700",
-  business: "border-cyan-200 bg-cyan-50 text-cyan-700",
-  free: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  unknown: "border-slate-200 bg-slate-50 text-slate-600",
+  plus: "border-violet-100 bg-violet-50/85 text-violet-700",
+  pro: "border-amber-100 bg-amber-50/85 text-amber-700",
+  team: "border-sky-100 bg-sky-50/85 text-sky-700",
+  enterprise: "border-slate-200 bg-slate-100/90 text-slate-700",
+  business: "border-cyan-100 bg-cyan-50/85 text-cyan-700",
+  free: "border-emerald-100 bg-emerald-50/85 text-emerald-700",
+  unknown: "border-slate-200 bg-slate-50/85 text-slate-600",
 } as const;
 
 const AccountCard: React.FC<AccountCardProps> = ({
@@ -32,12 +35,14 @@ const AccountCard: React.FC<AccountCardProps> = ({
   isRecommended,
   isRefreshing,
   isRefreshingSelf,
+  variant = "default",
   onDelete,
   onRefresh,
   onRename,
   onSwitch,
 }) => {
   const { switchState } = useAccountStore();
+  const prefersReducedMotion = useReducedMotion() ?? false;
   const insight = getAccountInsight(account);
   const [isEditing, setIsEditing] = useState(false);
   const [draftName, setDraftName] = useState(account.displayName);
@@ -45,9 +50,11 @@ const AccountCard: React.FC<AccountCardProps> = ({
 
   const isSwitching = switchState.phase !== "idle";
   const isActive = account.isActive;
+  const isFeatured = variant === "featured";
+  const isCompact = variant === "compact";
   const isSwitchTarget = switchState.toAccountId === account.id && isSwitching;
   const isQuotaRefreshing = isRefreshing || isRefreshingSelf;
-  const statusLabel = isActive ? "当前使用中" : isSwitchTarget ? "正在切换" : "可切换";
+  const statusLabel = isActive ? "当前" : isSwitchTarget ? "切换中" : "待命";
 
   useEffect(() => {
     setDraftName(account.displayName);
@@ -67,24 +74,122 @@ const AccountCard: React.FC<AccountCardProps> = ({
     }
   };
 
-  return (
-    <article
-      className={clsx(
-        "relative w-full rounded-[20px] border bg-white p-4 shadow-[0_18px_45px_-34px_rgba(15,23,42,0.28)] transition-all",
-        isActive
-          ? "border-indigo-500 ring-4 ring-indigo-50"
-          : "border-slate-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-[0_18px_50px_-34px_rgba(15,23,42,0.32)]",
-      )}
-    >
-      {isRecommended && !isActive && (
-        <div className="absolute -right-2 -top-2 rounded-full bg-[#ffbf1f] px-2.5 py-1 text-[10px] font-bold text-slate-900 shadow-[0_14px_30px_-20px_rgba(245,158,11,0.95)]">
-          ⚡ 最佳备用
+  if (isCompact) {
+    return (
+      <motion.article
+        layout
+        className="apple-panel flex flex-col gap-4 rounded-[28px] px-5 py-4 lg:flex-row lg:items-center lg:justify-between"
+        whileHover={hoverLift(prefersReducedMotion)}
+      >
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="group flex min-w-0 items-center gap-1.5">
+              <h3 className="truncate text-[1.05rem] font-semibold tracking-[-0.03em] text-slate-950">
+                {account.displayName}
+              </h3>
+              <button
+                onClick={() => {
+                  setDraftName(account.displayName);
+                  setIsEditing(true);
+                }}
+                className="rounded-full p-1.5 text-slate-300 opacity-0 transition-all hover:bg-slate-100 hover:text-slate-500 group-hover:opacity-100"
+                aria-label={`编辑 ${account.displayName} 名称`}
+              >
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.8}
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5M18.586 2.586a2 2 0 112.828 2.828L12 14.828l-4 1 1-4 9.586-9.242z"
+                  />
+                </svg>
+              </button>
+            </div>
+            {isActive && (
+              <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-semibold text-sky-700">
+                当前
+              </span>
+            )}
+            {isRecommended && !isActive && (
+              <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
+                推荐
+              </span>
+            )}
+          </div>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+            <span>{account.email ?? account.userId ?? "未绑定邮箱"}</span>
+            <span>·</span>
+            <span>{statusLabel}</span>
+            <span>·</span>
+            <span>最近切换 {formatRelativeTime(account.lastSwitchedAt)}</span>
+          </div>
         </div>
-      )}
 
-      <div className="flex items-start justify-between gap-2.5">
-        <div className="min-w-0">
-          {isEditing ? (
+        <div className="grid grid-cols-2 gap-4 lg:min-w-[260px] lg:grid-cols-3">
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              5h
+            </div>
+            <div className="mt-1 text-sm font-semibold text-slate-950">
+              {insight.hourlyQuota.valueLabel}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Week
+            </div>
+            <div className="mt-1 text-sm font-semibold text-slate-950">
+              {insight.weeklyQuota.valueLabel}
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Sync
+            </div>
+            <div className="mt-1 text-sm font-semibold text-slate-950">
+              {insight.syncLabel}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => void onRefresh()}
+            disabled={isQuotaRefreshing}
+            className="glass-pill rounded-full px-3 py-2 text-xs font-semibold text-slate-600 transition-all hover:bg-white/80 hover:text-slate-950 disabled:opacity-60"
+          >
+            {isQuotaRefreshing ? "刷新中" : "刷新"}
+          </button>
+          <button
+            onClick={() => !isActive && onSwitch(account)}
+            disabled={isActive || isSwitching}
+            className={clsx(
+              "rounded-full px-4 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed",
+              isActive
+                ? "border border-sky-100 bg-sky-50 text-sky-600"
+                : "bg-slate-950 text-white hover:-translate-y-0.5 disabled:bg-slate-800/70",
+            )}
+          >
+            {isActive ? "当前使用中" : isSwitchTarget ? "切换中" : "切换"}
+          </button>
+          <button
+            onClick={() => onDelete(account.id)}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white/72 text-slate-400 transition-all hover:bg-white hover:text-red-500"
+            aria-label={`删除 ${account.displayName}`}
+          >
+            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={1.8}
+                d="M6 7h12m-9 0V5a1 1 0 011-1h4a1 1 0 011 1v2m-7 0v11m4-11v11m5-11v11a2 2 0 01-2 2H8a2 2 0 01-2-2V7h12z"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {isEditing && (
+          <div className="w-full rounded-[22px] border border-slate-200 bg-white/88 p-3 lg:order-first lg:basis-full">
             <div className="flex items-center gap-2">
               <input
                 value={draftName}
@@ -98,13 +203,231 @@ const AccountCard: React.FC<AccountCardProps> = ({
                     setIsEditing(false);
                   }
                 }}
-                className="min-w-0 flex-1 rounded-lg border border-indigo-200 bg-white px-2 py-1 text-[1.05rem] font-semibold text-slate-950 outline-none ring-0 focus:border-indigo-400"
+                className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-950 outline-none ring-0 focus:border-sky-300"
                 autoFocus
               />
               <button
                 onClick={() => void handleSaveName()}
                 disabled={isSavingName}
-                className="rounded-lg p-1 text-emerald-600 transition-colors hover:bg-emerald-50 disabled:opacity-50"
+                className="rounded-full bg-slate-950 px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        )}
+      </motion.article>
+    );
+  }
+
+  if (isFeatured) {
+    return (
+      <motion.article
+        layout
+        className={clsx(
+          "apple-panel relative overflow-hidden rounded-[32px] p-4 sm:p-5",
+          isActive
+            ? "border border-sky-200/80 shadow-[0_32px_80px_-52px_rgba(59,130,246,0.22)]"
+            : "border border-white/72",
+        )}
+      >
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.92),transparent_74%)]" />
+        <div className="relative grid gap-3 lg:grid-cols-[minmax(0,1.18fr)_minmax(300px,0.82fr)]">
+          <div className="rounded-[28px] bg-[linear-gradient(145deg,#0b1220_0%,#122238_54%,#203652_100%)] p-6 text-white shadow-[0_34px_76px_-50px_rgba(15,23,42,0.76)]">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-400">
+              Current
+            </span>
+            <div className="mt-4 flex flex-wrap items-center gap-2.5">
+              <h3 className="truncate text-[2rem] font-black tracking-[-0.06em] text-white">
+                {account.displayName}
+              </h3>
+              {isActive && (
+                <span className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[10px] font-semibold text-sky-100">
+                  当前
+                </span>
+              )}
+              {isRecommended && !isActive && (
+                <span className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[10px] font-semibold text-emerald-100">
+                  下一位
+                </span>
+              )}
+            </div>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-300">
+              <span
+                className={clsx(
+                  "inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/8 px-2.5 py-1 text-[11px] font-medium text-white",
+                )}
+              >
+                {insight.roleLabel}
+              </span>
+              <span className="truncate text-slate-300">{account.email ?? account.userId ?? "未绑定邮箱"}</span>
+            </div>
+
+            <div className="mt-10">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+                5h 已用
+              </p>
+              <div className="mt-3 flex items-end gap-3">
+                <p className="text-[4rem] font-black tracking-[-0.11em] text-white">
+                  {insight.hourlyQuota.valueLabel.split(" ")[0] ?? insight.hourlyQuota.valueLabel}
+                </p>
+                <span className="pb-3 text-sm text-slate-300">{insight.hourlyQuota.valueLabel.split(" ").slice(1).join(" ")}</span>
+              </div>
+              <p className="mt-2 text-sm text-slate-300">{insight.hourlyQuota.detail}</p>
+            </div>
+
+            <div className="mt-8 flex items-center gap-3">
+              <button
+                onClick={() => !isActive && onSwitch(account)}
+                disabled={isActive || isSwitching}
+                className={clsx(
+                  "flex-1 rounded-full px-4 py-3 text-sm font-semibold transition-all disabled:cursor-not-allowed",
+                  isActive
+                    ? "border border-white/12 bg-white/10 text-white"
+                    : "bg-white text-slate-950 shadow-[0_18px_32px_-24px_rgba(255,255,255,0.7)] disabled:bg-white/50",
+                )}
+              >
+                {isActive ? "当前使用中" : isSwitchTarget ? "切换中..." : "切换到此账号"}
+              </button>
+              <button
+                onClick={() => void onRefresh()}
+                disabled={isQuotaRefreshing}
+                className="inline-flex items-center gap-1 rounded-full border border-white/12 bg-white/8 px-3 py-3 text-[11px] font-semibold text-white/80 transition-colors hover:bg-white/12 disabled:opacity-60"
+              >
+                <svg
+                  className={clsx("h-3 w-3", isQuotaRefreshing && "animate-spin")}
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.8}
+                    d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
+                  />
+                </svg>
+                刷新
+              </button>
+            </div>
+          </div>
+
+          <div className="grid gap-3">
+            <div className="metric-tile rounded-[26px] px-5 py-5">
+              <p className="section-kicker">本周</p>
+              <p className="mt-2 text-[1.6rem] font-black tracking-[-0.05em] text-slate-950">
+                {insight.weeklyQuota.valueLabel}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">{insight.weeklyQuota.detail}</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1">
+              <div className="metric-tile rounded-[24px] px-4 py-4">
+                <p className="section-kicker">状态</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span
+                    className={clsx(
+                      "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+                      isActive
+                        ? "bg-sky-100 text-sky-700"
+                        : isSwitchTarget
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-white text-slate-600",
+                    )}
+                  >
+                    <span
+                      className={clsx(
+                        "h-1.5 w-1.5 rounded-full",
+                        isActive
+                          ? "bg-sky-500"
+                          : isSwitchTarget
+                            ? "bg-amber-500 animate-pulse"
+                            : "bg-emerald-500",
+                      )}
+                    />
+                    {statusLabel}
+                  </span>
+                </div>
+                <p className="mt-2 text-xs text-slate-500">最近更新 {insight.syncLabel}</p>
+              </div>
+              <div className="metric-tile rounded-[24px] px-4 py-4">
+                <p className="section-kicker">上次切换</p>
+                <p className="mt-2 text-xl font-bold tracking-[-0.04em] text-slate-950">
+                  {formatRelativeTime(account.lastSwitchedAt)}
+                </p>
+              </div>
+            </div>
+
+            {!insight.hasRealRateLimits && (
+              <div className="rounded-[20px] border border-amber-200 bg-amber-50/90 px-3 py-2.5 text-[11px] text-amber-700">
+                {account.rateLimitsError
+                  ? `读取失败 · ${account.rateLimitsError}`
+                  : "当前还没有官方配额数据。"}
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-3 pt-1">
+              <button
+                onClick={() => onDelete(account.id)}
+                className="glass-pill rounded-full px-4 py-2.5 text-xs font-semibold text-slate-500 transition-colors hover:bg-white hover:text-red-500"
+                aria-label={`删除 ${account.displayName}`}
+              >
+                删除
+              </button>
+              <span className="text-xs text-slate-500">最近更新 {insight.syncLabel}</span>
+            </div>
+          </div>
+        </div>
+      </motion.article>
+    );
+  }
+
+  return (
+    <motion.article
+      layout
+      className={clsx(
+        "apple-panel relative w-full overflow-hidden rounded-[34px]",
+        isFeatured ? "p-5.5 sm:p-6" : "p-5",
+        isActive
+          ? "border border-sky-200/80 shadow-[0_32px_80px_-52px_rgba(59,130,246,0.26)]"
+          : "border border-white/72",
+      )}
+      whileHover={!isActive ? hoverLift(prefersReducedMotion) : undefined}
+    >
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.88),transparent_72%)]" />
+      {isFeatured && (
+        <div className="pointer-events-none absolute right-[-3rem] top-[-2rem] h-44 w-44 rounded-full bg-sky-100/60 blur-3xl" />
+      )}
+
+      {isRecommended && !isActive && (
+        <div className="absolute right-5 top-5 rounded-full border border-emerald-200 bg-emerald-50/92 px-3 py-1 text-[10px] font-semibold text-emerald-700">
+          下一位
+        </div>
+      )}
+
+      <div className="relative flex items-start justify-between gap-2.5">
+        <div className="min-w-0">
+          {isFeatured && <span className="eyebrow-chip">Current</span>}
+          {isEditing ? (
+            <div className={clsx("flex items-center gap-2", isFeatured && "mt-3")}>
+              <input
+                value={draftName}
+                onChange={(event) => setDraftName(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    void handleSaveName();
+                  }
+                  if (event.key === "Escape") {
+                    setDraftName(account.displayName);
+                    setIsEditing(false);
+                  }
+                }}
+                className="min-w-0 flex-1 rounded-2xl border border-slate-200 bg-white/90 px-3 py-2 text-[1.05rem] font-semibold text-slate-950 outline-none ring-0 focus:border-sky-300"
+                autoFocus
+              />
+              <button
+                onClick={() => void handleSaveName()}
+                disabled={isSavingName}
+                className="rounded-full p-2 text-emerald-600 transition-colors hover:bg-emerald-50 disabled:opacity-50"
                 aria-label={`保存 ${account.displayName} 的名称`}
               >
                 <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -118,8 +441,13 @@ const AccountCard: React.FC<AccountCardProps> = ({
               </button>
             </div>
           ) : (
-            <div className="group flex items-center gap-1.5">
-              <h3 className="truncate text-[1.15rem] font-bold tracking-[-0.03em] text-slate-950">
+            <div className={clsx("group flex items-center gap-1.5", isFeatured && "mt-3")}>
+              <h3
+                className={clsx(
+                  "truncate font-bold tracking-[-0.04em] text-slate-950",
+                  isFeatured ? "text-[1.65rem] sm:text-[1.95rem]" : "text-[1.22rem]",
+                )}
+              >
                 {account.displayName}
               </h3>
               <button
@@ -127,7 +455,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
                   setDraftName(account.displayName);
                   setIsEditing(true);
                 }}
-                className="rounded-md p-1 text-slate-300 opacity-0 transition-all hover:bg-slate-100 hover:text-slate-500 group-hover:opacity-100"
+                className="rounded-full p-2 text-slate-300 opacity-0 transition-all hover:bg-slate-100 hover:text-slate-500 group-hover:opacity-100"
                 aria-label={`编辑 ${account.displayName} 名称`}
               >
                 <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -141,10 +469,10 @@ const AccountCard: React.FC<AccountCardProps> = ({
               </button>
             </div>
           )}
-          <div className="mt-1.5 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-slate-500">
             <span
               className={clsx(
-                "inline-flex items-center gap-1.5 rounded-xl border px-2 py-1 text-[11px] font-medium",
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium",
                 ROLE_STYLES[insight.roleTone],
               )}
             >
@@ -172,45 +500,55 @@ const AccountCard: React.FC<AccountCardProps> = ({
         </div>
 
         {isActive && (
-          <div className="rounded-md border border-indigo-100 bg-indigo-50 px-2 py-1 text-[10px] font-semibold text-indigo-700">
-            ● 当前活跃
+          <div className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-semibold text-sky-700">
+            当前
           </div>
         )}
       </div>
 
-      <div className="relative mt-4">
+      <div className={clsx("relative", isFeatured ? "mt-5" : "mt-5")}>
         <div
           className={clsx(
-            "grid grid-cols-2 gap-2.5 transition-opacity duration-200",
+            "grid gap-3 transition-opacity duration-200",
+            isFeatured ? "md:grid-cols-2" : "grid-cols-2",
             isQuotaRefreshing && "opacity-45",
           )}
         >
-        {[insight.hourlyQuota, insight.weeklyQuota].map((metric) => (
-          <div
-            key={metric.label}
-            className="rounded-[20px] border border-slate-100 bg-[linear-gradient(180deg,_rgba(248,250,252,0.96)_0%,_rgba(255,255,255,0.98)_100%)] px-2.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]"
-          >
-            <Suspense fallback={<div className="mx-auto h-[96px] w-full rounded-2xl bg-slate-100/80" />}>
-              <UsageChart metric={metric} />
-            </Suspense>
-            <div className="mt-1 text-center">
-              <div className="text-[11px] font-semibold tracking-[0.01em] text-slate-500">
-                {metric.label}
-              </div>
-              <div className="mt-1 text-[13px] font-semibold text-slate-950">
-                {metric.valueLabel}
-              </div>
-              <div className="mt-1 text-[10px] leading-4 text-indigo-500">
-                {metric.detail}
+          {[insight.hourlyQuota, insight.weeklyQuota].map((metric) => (
+            <div
+              key={metric.label}
+              className="rounded-[26px] border border-white/80 bg-[linear-gradient(180deg,rgba(255,255,255,0.86),rgba(248,250,252,0.72))] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.88)]"
+            >
+              <Suspense
+                fallback={
+                  <div
+                    className={clsx(
+                      "mx-auto w-full rounded-2xl bg-slate-100/80",
+                      isFeatured ? "h-[96px]" : "h-[96px]",
+                    )}
+                  />
+                }
+              >
+                <UsageChart metric={metric} />
+              </Suspense>
+              <div className="mt-1 text-center">
+                <div className="text-[11px] font-semibold tracking-[0.01em] text-slate-500">
+                  {metric.label}
+                </div>
+                <div className="mt-1 text-[13px] font-semibold text-slate-950">
+                  {metric.valueLabel}
+                </div>
+                <div className="mt-1 text-[10px] leading-4 text-sky-600">
+                  {metric.detail}
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
         </div>
         {isQuotaRefreshing && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-[24px]">
-            <div className="inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-white/92 px-3 py-1.5 text-[11px] font-semibold text-indigo-700 shadow-[0_12px_26px_-16px_rgba(79,70,229,0.45)] backdrop-blur">
-              <span className="h-3.5 w-3.5 rounded-full border-2 border-indigo-200 border-t-indigo-600 animate-spin" />
+            <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/92 px-3 py-1.5 text-[11px] font-semibold text-slate-700 shadow-[0_12px_26px_-16px_rgba(15,23,42,0.18)] backdrop-blur">
+              <span className="h-3.5 w-3.5 rounded-full border-2 border-slate-200 border-t-slate-800 animate-spin" />
               正在刷新配额
             </div>
           </div>
@@ -218,14 +556,14 @@ const AccountCard: React.FC<AccountCardProps> = ({
       </div>
 
       {!insight.hasRealRateLimits && (
-        <div className="mt-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
+        <div className="mt-3 rounded-[22px] border border-amber-200 bg-amber-50/90 px-3 py-2.5 text-[11px] text-amber-700">
           {account.rateLimitsError
             ? `官方配额读取失败：${account.rateLimitsError}`
             : "当前未拿到官方配额数据，不再展示估算值。"}
         </div>
       )}
 
-      <div className="mt-3.5 flex items-center gap-1.5 text-[11px] text-slate-400">
+      <div className={clsx("flex items-center gap-1.5 text-[11px] text-slate-400", isFeatured ? "mt-4" : "mt-4")}>
         <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path
             strokeLinecap="round"
@@ -234,11 +572,11 @@ const AccountCard: React.FC<AccountCardProps> = ({
             d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
           />
         </svg>
-        <span>数据最后同步于: {insight.syncLabel}</span>
+        <span>最近更新 {insight.syncLabel}</span>
         <button
           onClick={() => void onRefresh()}
           disabled={isQuotaRefreshing}
-          className="ml-auto inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2 py-1 text-[10px] font-semibold text-slate-500 transition-colors hover:border-slate-300 hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+          className="ml-auto inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/80 px-3 py-1.5 text-[10px] font-semibold text-slate-500 transition-colors hover:bg-white hover:text-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
           aria-label={`刷新 ${account.displayName} 配额`}
         >
           <svg
@@ -258,84 +596,69 @@ const AccountCard: React.FC<AccountCardProps> = ({
         </button>
       </div>
 
-      <div className="mt-1 text-[10px] text-slate-400">
-        最近切换 {formatRelativeTime(account.lastSwitchedAt)}
-      </div>
-
-      <div
-        className={clsx(
-          "mt-3 rounded-2xl border px-3 py-2.5",
-          isActive
-            ? "border-indigo-200 bg-indigo-50/80"
-            : isSwitchTarget
-            ? "border-amber-200 bg-amber-50/80"
-            : "border-slate-200 bg-slate-50/80",
-        )}
-      >
-        <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-          Account Status
-        </div>
-        <div className="mt-1.5 flex items-center justify-between gap-2">
+      <div className="mt-2 text-[10px] text-slate-400">
+        <div className="flex flex-wrap items-center gap-2">
+          <span>最近切换 {formatRelativeTime(account.lastSwitchedAt)}</span>
           <div
             className={clsx(
               "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
               isActive
-                ? "bg-indigo-100 text-indigo-700"
+                ? "bg-sky-100 text-sky-700"
                 : isSwitchTarget
-                ? "bg-amber-100 text-amber-700"
-                : "bg-white text-slate-600",
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-white text-slate-600",
             )}
           >
             <span
               className={clsx(
                 "h-1.5 w-1.5 rounded-full",
                 isActive
-                  ? "bg-indigo-500"
+                  ? "bg-sky-500"
                   : isSwitchTarget
-                  ? "bg-amber-500 animate-pulse"
-                  : "bg-emerald-500",
+                    ? "bg-amber-500 animate-pulse"
+                    : "bg-emerald-500",
               )}
             />
             {statusLabel}
           </div>
-          <div
+          <span
             className={clsx(
-              "text-right text-[10px]",
+              "text-[10px]",
               isActive
-                ? "text-indigo-500"
+                ? "text-sky-600"
                 : isSwitchTarget
-                ? "text-amber-600"
-                : "text-slate-500",
+                  ? "text-amber-600"
+                  : "text-slate-500",
             )}
           >
             {isActive
               ? "当前账号已写入 auth.json"
               : isSwitchTarget
-              ? "正在切换共享会话的账号凭证"
-              : "切换后继续当前共享会话"}
-          </div>
+              ? "正在切换共享会话"
+              : "切换后继续当前会话"}
+          </span>
         </div>
       </div>
 
-      <div className="my-3.5 h-px bg-slate-100" />
+      <div className={clsx("h-px bg-slate-200/80", isFeatured ? "my-4" : "my-4")} />
 
-      <div className="flex items-center gap-3">
+      <div className={clsx("flex items-center gap-3", isFeatured && "sm:max-w-[460px]")}>
         <button
           onClick={() => !isActive && onSwitch(account)}
           disabled={isActive || isSwitching}
           className={clsx(
-            "flex-1 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all disabled:cursor-not-allowed",
+            "flex-1 rounded-full px-4 py-3 text-sm font-semibold transition-all disabled:cursor-not-allowed",
             isActive
-              ? "border border-indigo-100 bg-indigo-50 text-indigo-500 shadow-none"
-              : "bg-slate-900 text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-800/70",
+              ? "border border-sky-100 bg-sky-50 text-sky-600 shadow-none"
+              : "primary-action text-white disabled:cursor-not-allowed disabled:bg-slate-800/70",
           )}
         >
-          {isActive ? "正在使用中" : isSwitchTarget ? "切换中..." : "切换到此账户"}
+          {isActive ? "当前使用中" : isSwitchTarget ? "切换中..." : "切换到此账号"}
         </button>
 
         <button
           onClick={() => onDelete(account.id)}
-          className="flex h-9 w-9 items-center justify-center rounded-xl text-slate-400 transition-all hover:bg-slate-100 hover:text-red-500"
+          className="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-white/72 text-slate-400 transition-all hover:bg-white hover:text-red-500"
           aria-label={`删除 ${account.displayName}`}
         >
           <svg className="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -348,7 +671,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
           </svg>
         </button>
       </div>
-    </article>
+    </motion.article>
   );
 };
 

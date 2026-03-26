@@ -10,6 +10,7 @@ import {
   SessionInfo,
   SnapshotResult,
   SwitchResult,
+  UsageStatsSummary,
 } from "../types";
 
 const isTauriRuntime =
@@ -117,6 +118,30 @@ const mockPlatformCapabilities: DesktopPlatformCapabilities = {
   supportsTaskbarShortcuts: false,
   supportsDockMenu: false,
   supportsAppIndicator: false,
+};
+
+const mockUsageStatsSummary: UsageStatsSummary = {
+  sessionsAnalyzed: 18,
+  latestModel: "gpt-5-codex",
+  totalTokens: {
+    inputTokens: 186_420,
+    cachedInputTokens: 74_220,
+    outputTokens: 28_540,
+    reasoningOutputTokens: 12_180,
+    totalTokens: 214_960,
+  },
+  latestTotalTokens: {
+    inputTokens: 5_320,
+    cachedInputTokens: 2_180,
+    outputTokens: 690,
+    reasoningOutputTokens: 240,
+    totalTokens: 6_010,
+  },
+  models: [
+    { model: "gpt-5-codex", sessions: 11, totalTokens: 138_220 },
+    { model: "gpt-5.2", sessions: 5, totalTokens: 58_940 },
+    { model: "gpt-4.1", sessions: 2, totalTokens: 17_800 },
+  ],
 };
 
 function readJson<T>(key: string, fallback: T): T {
@@ -360,6 +385,9 @@ const browserApi = {
       }
     );
   },
+  async readUsageStatsSummary(): Promise<UsageStatsSummary> {
+    return mockUsageStatsSummary;
+  },
   async deleteAccountSessions(accountId: string): Promise<void> {
     const store = readMockAccounts();
     writeMockAccounts({
@@ -432,6 +460,7 @@ export const api = isTauriRuntime
         return response.rateLimits ?? null;
       },
       getCurrentSessionsInfo: () => invoke<SessionInfo>("get_current_sessions_info"),
+      readUsageStatsSummary: () => invoke<UsageStatsSummary>("read_usage_stats_summary"),
       deleteAccountSessions: (accountId: string) =>
         invoke<void>("delete_account_sessions", { accountId }),
       resumeSessionInTerminal: (sessionId: string) =>

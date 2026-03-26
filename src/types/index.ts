@@ -7,6 +7,7 @@ export interface Account {
   createdAt: string;
   lastSwitchedAt: string | null;
   sessionInfo: SessionInfo | null;
+  usageLedger?: AccountUsageLedger | null;
   rateLimits?: RateLimitSnapshot | null;
   rateLimitsError?: string | null;
 }
@@ -87,6 +88,34 @@ export interface DesktopPlatformCapabilities {
   supportsTaskbarShortcuts: boolean;
   supportsDockMenu: boolean;
   supportsAppIndicator: boolean;
+}
+
+export interface TokenUsageInfo {
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  reasoningOutputTokens: number;
+  totalTokens: number;
+}
+
+export interface AccountUsageLedger {
+  accumulated: TokenUsageInfo;
+  segmentStart: TokenUsageInfo | null;
+  lastUpdatedAt: string | null;
+}
+
+export interface ModelUsageSummary {
+  model: string;
+  sessions: number;
+  totalTokens: number;
+}
+
+export interface UsageStatsSummary {
+  sessionsAnalyzed: number;
+  latestModel: string | null;
+  totalTokens: TokenUsageInfo;
+  latestTotalTokens: TokenUsageInfo | null;
+  models: ModelUsageSummary[];
 }
 
 export interface CreditsSnapshot {

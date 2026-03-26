@@ -20,6 +20,15 @@ export interface AccountInsight {
   hasRealRateLimits: boolean;
 }
 
+export interface UsageEfficiency {
+  score: number | null;
+  usedPercent: number | null;
+  elapsedPercent: number | null;
+  status: "unavailable" | "underused" | "balanced" | "aggressive";
+  label: string;
+  detail: string;
+}
+
 interface RankedQuotaAccount {
   account: Account;
   primaryUsed: number;
@@ -129,6 +138,79 @@ function deriveWeeklyQuota(account: Account): QuotaMetric {
   }
 
   return createUnavailableMetric("每周已使用配额", "week");
+}
+
+export function getHourlyUsageEfficiency(
+  account: Account,
+  now = Date.now(),
+): UsageEfficiency {
+  const primary = account.rateLimits?.primary;
+  if (
+    !primary ||
+    typeof primary.usedPercent !== "number" ||
+    typeof primary.resetsAt !== "number" ||
+    typeof primary.windowDurationMins !== "number" ||
+    primary.windowDurationMins <= 0
+  ) {
+    return {
+      score: null,
+      usedPercent: typeof primary?.usedPercent === "number" ? clamp(primary.usedPercent, 0, 100) : null,
+      elapsedPercent: null,
+      status: "unavailable",
+      label: "待接入",
+      detail: "缺少完整窗口数据",
+    };
+  }
+
+  const usedPercent = clamp(primary.usedPercent, 0, 100);
+  const windowMs = primary.windowDurationMins * 60 * 1000;
+  const resetAtMs = primary.resetsAt * 1000;
+  const remainingMs = clamp(resetAtMs - now, 0, windowMs);
+  const elapsedPercent = clamp(((windowMs - remainingMs) / windowMs) * 100, 0, 100);
+
+  if (elapsedPercent <= 0.5) {
+    return {
+      score: null,
+      usedPercent,
+      elapsedPercent,
+      status: "unavailable",
+      label: "刚开始",
+      detail: "窗口刚启动，暂不计算效率",
+    };
+  }
+
+  const score = clamp((usedPercent / elapsedPercent) * 100, 0, 999);
+
+  if (score < 70) {
+    return {
+      score,
+      usedPercent,
+      elapsedPercent,
+      status: "underused",
+      label: `${Math.round(score)}%`,
+      detail: "窗口利用偏低，当前节奏偏慢",
+    };
+  }
+
+  if (score <= 120) {
+    return {
+      score,
+      usedPercent,
+      elapsedPercent,
+      status: "balanced",
+      label: `${Math.round(score)}%`,
+      detail: "窗口利用健康，节奏比较均衡",
+    };
+  }
+
+  return {
+    score,
+    usedPercent,
+    elapsedPercent,
+    status: "aggressive",
+    label: `${Math.round(score)}%`,
+    detail: "窗口利用激进，账号压力偏高",
+  };
 }
 
 export function getAccountInsight(account: Account): AccountInsight {

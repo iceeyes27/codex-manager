@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use tauri::AppHandle;
 use tokio::fs;
@@ -7,7 +8,10 @@ use walkdir::WalkDir;
 
 use crate::atomic_io::write_text_atomic_async;
 use crate::commands::paths::{app_data_dir, home_codex_dir};
-use crate::models::{RestoreResult, SessionInfo, SnapshotMeta, SnapshotResult, SwitchResult};
+use crate::models::{
+    ModelUsageSummary, RestoreResult, SessionInfo, SnapshotMeta, SnapshotResult, SwitchResult,
+    TokenUsageInfo, UsageStatsSummary,
+};
 
 // ─── Path helpers ─────────────────────────────────────────────────────────────
 
@@ -84,6 +88,38 @@ struct SessionIndexEntry {
     updated_at: Option<String>,
 }
 
+#[derive(Debug, Deserialize)]
+struct RolloutLine {
+    #[serde(rename = "type")]
+    entry_type: String,
+    payload: serde_json::Value,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct TurnContextPayload {
+    #[serde(default)]
+    model: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct EventMessagePayload {
+    #[serde(rename = "type")]
+    message_type: String,
+    #[serde(default)]
+    info: Option<TokenCountInfo>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+struct TokenCountInfo {
+    #[serde(default)]
+    #[serde(alias = "totalTokenUsage")]
+    total_token_usage: Option<TokenUsageInfo>,
+    #[serde(default)]
+    #[serde(alias = "lastTokenUsage")]
+    last_token_usage: Option<TokenUsageInfo>,
+}
+
 async fn latest_shared_session() -> Result<Option<SessionIndexEntry>, String> {
     let path = home_codex_dir()?.join("session_index.jsonl");
     if !path.exists() {
@@ -104,6 +140,163 @@ async fn latest_shared_session() -> Result<Option<SessionIndexEntry>, String> {
     }
 
     Ok(None)
+}
+
+fn add_token_usage(total: &mut TokenUsageInfo, usage: &TokenUsageInfo) {
+    total.input_tokens += usage.input_tokens;
+    total.cached_input_tokens += usage.cached_input_tokens;
+    total.output_tokens += usage.output_tokens;
+    total.reasoning_output_tokens += usage.reasoning_output_tokens;
+    total.total_tokens += usage.total_tokens;
+}
+
+fn extract_token_usage(info: TokenCountInfo) -> Option<TokenUsageInfo> {
+    info.total_token_usage.or(info.last_token_usage)
+}
+
+async fn parse_rollout_usage(path: &PathBuf) -> Result<(Option<String>, Option<TokenUsageInfo>), String> {
+    let content = fs::read_to_string(path).await.map_err(|e| e.to_string())?;
+    let mut session_model: Option<String> = None;
+    let mut session_latest_tokens: Option<TokenUsageInfo> = None;
+
+    for line in content.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        let Ok(entry) = serde_json::from_str::<RolloutLine>(trimmed) else {
+            continue;
+        };
+
+        match entry.entry_type.as_str() {
+            "turn_context" => {
+                if let Ok(payload) = serde_json::from_value::<TurnContextPayload>(entry.payload) {
+                    if payload.model.is_some() {
+                        session_model = payload.model;
+                    }
+                }
+            }
+            "event_msg" => {
+                if let Ok(payload) = serde_json::from_value::<EventMessagePayload>(entry.payload) {
+                    if payload.message_type == "token_count" {
+                        if let Some(info) = payload.info {
+                            if let Some(usage) = extract_token_usage(info) {
+                                session_latest_tokens = Some(usage);
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    Ok((session_model, session_latest_tokens))
+}
+
+async fn read_usage_stats_summary_inner() -> Result<UsageStatsSummary, String> {
+    let sessions_dir = live_sessions_dir()?;
+    if !sessions_dir.exists() {
+        return Ok(UsageStatsSummary {
+            sessions_analyzed: 0,
+            latest_model: None,
+            total_tokens: TokenUsageInfo::default(),
+            latest_total_tokens: None,
+            models: vec![],
+        });
+    }
+
+    let mut session_files: Vec<PathBuf> = WalkDir::new(&sessions_dir)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_file())
+        .filter(|entry| {
+            entry
+                .file_name()
+                .to_str()
+                .is_some_and(|name| name.starts_with("rollout-") && name.ends_with(".jsonl"))
+        })
+        .map(|entry| entry.into_path())
+        .collect();
+
+    session_files.sort();
+
+    let latest_session = latest_shared_session().await?;
+    let current_session_path = latest_session.as_ref().and_then(|session| {
+        session_files.iter().find(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.contains(&session.id))
+        })
+    }).cloned();
+
+    let recent_files: Vec<PathBuf> = session_files.iter().rev().take(40).cloned().collect();
+    let mut total_tokens = TokenUsageInfo::default();
+    let mut latest_total_tokens: Option<TokenUsageInfo> = None;
+    let mut latest_model: Option<String> = None;
+    let mut model_totals: HashMap<String, (u32, u64)> = HashMap::new();
+    let mut sessions_analyzed = 0u32;
+
+    if let Some(current_path) = current_session_path.as_ref() {
+        let (current_model, current_tokens) = parse_rollout_usage(current_path).await?;
+        latest_model = current_model;
+        latest_total_tokens = current_tokens;
+    }
+
+    for path in recent_files {
+        let (session_model, session_latest_tokens) = parse_rollout_usage(&path).await?;
+
+        if session_model.is_none() && session_latest_tokens.is_none() {
+            continue;
+        }
+
+        sessions_analyzed += 1;
+
+        if latest_model.is_none() {
+            latest_model = session_model.clone();
+        }
+
+        if latest_total_tokens.is_none() {
+            latest_total_tokens = session_latest_tokens.clone();
+        }
+
+        if let Some(usage) = session_latest_tokens.as_ref() {
+            add_token_usage(&mut total_tokens, usage);
+            if let Some(model) = session_model.as_ref() {
+                let entry = model_totals.entry(model.clone()).or_insert((0, 0));
+                entry.0 += 1;
+                entry.1 += usage.total_tokens;
+            }
+        } else if let Some(model) = session_model.as_ref() {
+            let entry = model_totals.entry(model.clone()).or_insert((0, 0));
+            entry.0 += 1;
+        }
+    }
+
+    let mut models: Vec<ModelUsageSummary> = model_totals
+        .into_iter()
+        .map(|(model, (sessions, total_tokens))| ModelUsageSummary {
+            model,
+            sessions,
+            total_tokens,
+        })
+        .collect();
+    models.sort_by(|left, right| {
+        right
+            .total_tokens
+            .cmp(&left.total_tokens)
+            .then_with(|| right.sessions.cmp(&left.sessions))
+            .then_with(|| left.model.cmp(&right.model))
+    });
+
+    Ok(UsageStatsSummary {
+        sessions_analyzed,
+        latest_model,
+        total_tokens,
+        latest_total_tokens,
+        models,
+    })
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -370,10 +563,50 @@ pub async fn get_current_sessions_info() -> Result<SessionInfo, String> {
 }
 
 #[tauri::command]
+pub async fn read_usage_stats_summary() -> Result<UsageStatsSummary, String> {
+    read_usage_stats_summary_inner().await
+}
+
+#[tauri::command]
 pub async fn delete_account_sessions(app: AppHandle, account_id: String) -> Result<(), String> {
     let path = account_snapshot_dir(&app, &account_id)?;
     if path.exists() {
         fs::remove_dir_all(&path).await.map_err(|e| e.to_string())?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{extract_token_usage, EventMessagePayload};
+
+    #[test]
+    fn parses_snake_case_token_count_payload() {
+        let payload = r#"{
+            "type": "token_count",
+            "info": {
+                "total_token_usage": {
+                    "input_tokens": 100,
+                    "cached_input_tokens": 25,
+                    "output_tokens": 10,
+                    "reasoning_output_tokens": 5,
+                    "total_tokens": 110
+                },
+                "last_token_usage": {
+                    "input_tokens": 20,
+                    "cached_input_tokens": 5,
+                    "output_tokens": 2,
+                    "reasoning_output_tokens": 1,
+                    "total_tokens": 22
+                }
+            }
+        }"#;
+
+        let parsed: EventMessagePayload = serde_json::from_str(payload).expect("payload should parse");
+        let usage = extract_token_usage(parsed.info.expect("token info should exist"))
+            .expect("usage should be extracted");
+
+        assert_eq!(usage.total_tokens, 110);
+        assert_eq!(usage.input_tokens, 100);
+    }
 }

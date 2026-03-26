@@ -1,6 +1,7 @@
 import { useAccountStore } from "../store/accountStore";
 import { api } from "../utils/invoke";
 import { Account } from "../types";
+import { beginAccountUsage, finalizeAccountUsage } from "../utils/tokenLedger";
 
 export const useAccountSwitch = () => {
   const { setSwitchState, showToast, setAccounts } = useAccountStore();
@@ -28,6 +29,8 @@ export const useAccountSwitch = () => {
 
     try {
       const toAuth = await api.readAccountCredentials(toId);
+      const usageSummary = await api.readUsageStatsSummary().catch(() => null);
+      const liveUsage = usageSummary?.latestTotalTokens ?? null;
 
       // Keep progress feedback aligned with the actual auth-switch flow.
       t1 = setTimeout(() => setSwitchState({ phase: "writing_auth" }), 400);
@@ -39,7 +42,7 @@ export const useAccountSwitch = () => {
       clearTimeout(t2);
 
       if (!result.success) {
-        throw new Error(result.error ?? "Switch failed for unknown reason");
+        throw new Error(result.error ?? "切换未完成");
       }
 
       setSwitchState({
@@ -62,31 +65,35 @@ export const useAccountSwitch = () => {
         currentUpdatedAt: currentSessionInfo?.currentUpdatedAt ?? null,
       };
       const updatedAccounts = accounts.map((a) => ({
-        ...a,
+        ...(a.id === fromId
+          ? finalizeAccountUsage(a, liveUsage, now)
+          : a.id === toId
+            ? beginAccountUsage(a, liveUsage, now)
+            : a),
         isActive: a.id === toId,
         lastSwitchedAt: a.id === toId ? now : a.lastSwitchedAt,
         sessionInfo:
           a.id === toId
             ? sharedSessionInfo
             : a.id === fromId
-            ? {
-                fileCount: result.snapshot.fileCount,
-                totalBytes: result.snapshot.totalBytes,
-                lastSessionObservedAt: result.snapshot.snapshotTime,
-                currentSessionId:
-                  activeAccount?.sessionInfo?.currentSessionId ??
-                  currentSessionInfo?.currentSessionId ??
-                  null,
-                currentThreadName:
-                  activeAccount?.sessionInfo?.currentThreadName ??
-                  currentSessionInfo?.currentThreadName ??
-                  null,
-                currentUpdatedAt:
-                  activeAccount?.sessionInfo?.currentUpdatedAt ??
-                  currentSessionInfo?.currentUpdatedAt ??
-                  null,
-              }
-            : a.sessionInfo,
+              ? {
+                  fileCount: result.snapshot.fileCount,
+                  totalBytes: result.snapshot.totalBytes,
+                  lastSessionObservedAt: result.snapshot.snapshotTime,
+                  currentSessionId:
+                    activeAccount?.sessionInfo?.currentSessionId ??
+                    currentSessionInfo?.currentSessionId ??
+                    null,
+                  currentThreadName:
+                    activeAccount?.sessionInfo?.currentThreadName ??
+                    currentSessionInfo?.currentThreadName ??
+                    null,
+                  currentUpdatedAt:
+                    activeAccount?.sessionInfo?.currentUpdatedAt ??
+                    currentSessionInfo?.currentUpdatedAt ??
+                    null,
+                }
+              : a.sessionInfo,
       }));
 
       setAccounts(updatedAccounts);
@@ -110,19 +117,19 @@ export const useAccountSwitch = () => {
 
       const issues = [
         persistErrorMessage
-          ? `本地状态保存失败: ${persistErrorMessage}`
+          ? `保存失败 · ${persistErrorMessage}`
           : null,
         restartErrorMessage
-          ? `自动重启 Codex 失败，请手动重新打开 Codex: ${restartErrorMessage}`
+          ? `重启失败 · ${restartErrorMessage}`
           : null,
       ].filter((issue): issue is string => Boolean(issue));
 
       if (issues.length > 0) {
-        showToast(`已切换至 ${toAccount.displayName}，但${issues.join("；")}`);
+        showToast(`已切换到 ${toAccount.displayName} · ${issues.join("；")}`);
       } else if (canAutoRestartCodex) {
-        showToast(`已切换至 ${toAccount.displayName}，正在重新打开 Codex`);
+        showToast(`已切换到 ${toAccount.displayName}`);
       } else {
-        showToast(`已切换至 ${toAccount.displayName}，请重新打开 Codex 以使用新账号`);
+        showToast(`已切换到 ${toAccount.displayName} · 请重新打开 Codex`);
       }
 
       setTimeout(
@@ -135,7 +142,7 @@ export const useAccountSwitch = () => {
       clearTimeout(t2);
       const msg = err instanceof Error ? err.message : String(err);
       setSwitchState({ phase: "error", error: msg });
-      showToast(`切换失败: ${msg}`);
+      showToast(`切换失败 · ${msg}`);
     }
   };
 

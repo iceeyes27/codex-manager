@@ -15,6 +15,8 @@ pub struct Account {
     pub created_at: String,
     pub last_switched_at: Option<String>,
     pub session_info: Option<SessionInfo>,
+    #[serde(default)]
+    pub usage_ledger: Option<AccountUsageLedger>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,6 +29,14 @@ pub struct SessionInfo {
     pub current_session_id: Option<String>,
     pub current_thread_name: Option<String>,
     pub current_updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountUsageLedger {
+    pub accumulated: TokenUsageInfo,
+    pub segment_start: Option<TokenUsageInfo>,
+    pub last_updated_at: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -127,6 +137,39 @@ pub struct RateLimitSnapshot {
 pub struct GetAccountRateLimitsResponse {
     pub rate_limits: RateLimitSnapshot,
     pub rate_limits_by_limit_id: Option<std::collections::HashMap<String, RateLimitSnapshot>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct TokenUsageInfo {
+    #[serde(alias = "input_tokens")]
+    pub input_tokens: u64,
+    #[serde(alias = "cached_input_tokens")]
+    pub cached_input_tokens: u64,
+    #[serde(alias = "output_tokens")]
+    pub output_tokens: u64,
+    #[serde(alias = "reasoning_output_tokens")]
+    pub reasoning_output_tokens: u64,
+    #[serde(alias = "total_tokens")]
+    pub total_tokens: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ModelUsageSummary {
+    pub model: String,
+    pub sessions: u32,
+    pub total_tokens: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UsageStatsSummary {
+    pub sessions_analyzed: u32,
+    pub latest_model: Option<String>,
+    pub total_tokens: TokenUsageInfo,
+    pub latest_total_tokens: Option<TokenUsageInfo>,
+    pub models: Vec<ModelUsageSummary>,
 }
 
 // ─── File-format structs (snake_case, matches on-disk JSON) ──────────────────

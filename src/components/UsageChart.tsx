@@ -12,9 +12,9 @@ interface UsageChartProps {
 }
 
 const TONE_COLORS: Record<QuotaMetric["tone"], string> = {
-  critical: "#ef4444",
-  warning: "#f5b400",
-  healthy: "#18b766",
+  critical: "#b86b45",
+  warning: "#b79a58",
+  healthy: "#5d897f",
 };
 
 function buildSeries(metric: QuotaMetric) {
@@ -35,8 +35,8 @@ function buildSeries(metric: QuotaMetric) {
             {
               value: 100,
               itemStyle: {
-                color: "#eef2f7",
-                borderColor: "#cbd5e1",
+                color: "#eceae6",
+                borderColor: "#c8ccd1",
                 borderWidth: 1.25,
                 borderType: "dashed",
               },
@@ -47,14 +47,14 @@ function buildSeries(metric: QuotaMetric) {
               value: usedPercent,
               itemStyle: {
                 color: TONE_COLORS[metric.tone],
-                shadowBlur: 14,
-                shadowColor: "rgba(15, 23, 42, 0.14)",
+                shadowBlur: 18,
+                shadowColor: "rgba(44, 52, 61, 0.18)",
               },
             },
             {
               value: Math.max(0, 100 - usedPercent),
               itemStyle: {
-                color: "#e8edf5",
+                color: "#f1efeb",
               },
             },
           ],
@@ -68,16 +68,16 @@ function buildSeries(metric: QuotaMetric) {
       rich: {
         value: {
           fontSize: 18,
-          fontWeight: 700,
+          fontWeight: 750,
           lineHeight: 24,
           color: "#0f172a",
-          fontFamily: "ui-sans-serif, sans-serif",
+          fontFamily: "\"SF Pro Display\", \"SF Pro Text\", ui-sans-serif, sans-serif",
         },
         name: {
           fontSize: 10,
           lineHeight: 12,
           color: "#64748b",
-          fontFamily: "ui-sans-serif, sans-serif",
+          fontFamily: "\"SF Pro Text\", ui-sans-serif, sans-serif",
         },
       },
     },

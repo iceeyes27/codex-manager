@@ -1,7 +1,9 @@
 import React, { useEffect, useRef, useState } from "react";
+import { AnimatePresence, LazyMotion, MotionConfig, domAnimation, motion, useReducedMotion } from "motion/react";
 import { v4 as uuidv4 } from "uuid";
 import Header from "./components/Header";
 import AccountList from "./components/AccountList";
+import UsageStatsPage from "./components/UsageStatsPage";
 import TrayPanel from "./components/TrayPanel";
 import SwitchProgress from "./components/SwitchProgress";
 import AddAccountModal from "./components/AddAccountModal";
@@ -20,6 +22,7 @@ import {
 import { getBestQuotaAccount } from "./utils/dashboard";
 import { useAccountSwitch } from "./hooks/useAccountSwitch";
 import { Account } from "./types";
+import { MOTION_EASE, revealUp } from "./utils/motion";
 
 type ConfirmState =
   | { kind: "delete"; accountId: string }
@@ -42,11 +45,13 @@ const App: React.FC = () => {
   } = useAccountStore();
   const { switchAccount } = useAccountSwitch();
   const [confirmState, setConfirmState] = useState<ConfirmState>(null);
+  const [currentView, setCurrentView] = useState<"accounts" | "stats">("accounts");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [refreshingAccountIds, setRefreshingAccountIds] = useState<string[]>([]);
   const [isImportingCurrentAuth, setIsImportingCurrentAuth] = useState(false);
   const [isSmartSwitching, setIsSmartSwitching] = useState(false);
   const [unmanagedCurrentAuthLabel, setUnmanagedCurrentAuthLabel] = useState<string | null>(null);
+  const prefersReducedMotion = useReducedMotion() ?? false;
   const refreshingRef = useRef(false);
   const settingsLoadedRef = useRef(false);
   const lastSavedSettingsRef = useRef<string | null>(null);
@@ -99,23 +104,23 @@ const App: React.FC = () => {
       if (activeChanged) {
         await api.saveAccounts({ version: store.version, accounts: hydrated });
       }
-      if (!silent) {
-        if (rateLimitFailures.length === hydrated.length && hydrated.length > 0) {
-          showToast(`刷新失败: ${rateLimitFailures[0].rateLimitsError}`);
-        } else if (rateLimitFailures.length > 0) {
-          showToast(
-            `部分账号刷新失败（${rateLimitFailures.length}/${hydrated.length}）: ${rateLimitFailures[0].rateLimitsError}`,
-          );
-        } else {
-          showToast("用量已刷新");
+        if (!silent) {
+          if (rateLimitFailures.length === hydrated.length && hydrated.length > 0) {
+          showToast(`刷新失败 · ${rateLimitFailures[0].rateLimitsError}`);
+          } else if (rateLimitFailures.length > 0) {
+            showToast(
+            `部分刷新失败 · ${rateLimitFailures[0].rateLimitsError}`,
+            );
+          } else {
+          showToast("已刷新");
+          }
         }
-      }
-    } catch (error) {
-      if (!silent) {
-        showToast(
-          `刷新失败: ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
+      } catch (error) {
+        if (!silent) {
+          showToast(
+          `刷新失败 · ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
     } finally {
       refreshingRef.current = false;
       setIsRefreshing(false);
@@ -142,12 +147,12 @@ const App: React.FC = () => {
       updateAccount(accountId, hydrated);
 
       if (!hydrated.rateLimits && hydrated.rateLimitsError) {
-        showToast(`刷新失败: ${hydrated.rateLimitsError}`);
+        showToast(`刷新失败 · ${hydrated.rateLimitsError}`);
       } else {
-        showToast(`${hydrated.displayName} 配额已刷新`);
+        showToast(`${hydrated.displayName} 已刷新`);
       }
     } catch (error) {
-      showToast(`刷新失败: ${error instanceof Error ? error.message : String(error)}`);
+      showToast(`刷新失败 · ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setRefreshingAccountIds((current) => current.filter((id) => id !== accountId));
     }
@@ -201,9 +206,9 @@ const App: React.FC = () => {
 
       const hydrated = await hydrateAccounts(nextAccounts);
       await persistAccounts(hydrated);
-      showToast(existingAccount ? "当前授权已更新到现有账户" : "当前授权已导入");
+      showToast(existingAccount ? "已更新当前授权" : "已导入当前授权");
     } catch (error) {
-      showToast(`导入当前授权失败: ${error instanceof Error ? error.message : String(error)}`);
+      showToast(`导入失败 · ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsImportingCurrentAuth(false);
     }
@@ -221,16 +226,16 @@ const App: React.FC = () => {
 
       const bestAccount = getBestQuotaAccount(hydrated);
       if (!bestAccount) {
-        throw new Error("没有可用于智能切换的真实配额数据");
+        throw new Error("当前没有足够数据");
       }
       if (bestAccount.isActive) {
-        showToast(`当前账号 ${bestAccount.displayName} 已是最佳选择`);
+        showToast(`${bestAccount.displayName} 已是当前最佳选择`);
         return;
       }
 
       await requestSwitch(bestAccount);
     } catch (error) {
-      showToast(`智能切换失败: ${error instanceof Error ? error.message : String(error)}`);
+      showToast(`智能切换失败 · ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setIsSmartSwitching(false);
     }
@@ -316,7 +321,7 @@ const App: React.FC = () => {
         })
         .catch((error) => {
           setSettingsSaveState("error");
-          showToast(`设置保存失败: ${error instanceof Error ? error.message : String(error)}`);
+          showToast(`保存失败 · ${error instanceof Error ? error.message : String(error)}`);
         });
     }, 250);
 
@@ -332,9 +337,9 @@ const App: React.FC = () => {
       const next = accounts.filter((a) => a.id !== deleteId);
       setAccounts(next);
       await api.saveAccounts({ version: "1.0", accounts: next });
-      showToast("账户已删除");
+      showToast("已删除");
     } catch (err: unknown) {
-      showToast(`删除失败: ${err instanceof Error ? err.message : String(err)}`);
+      showToast(`删除失败 · ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setConfirmState(null);
     }
@@ -355,16 +360,16 @@ const App: React.FC = () => {
       const imported = await importBackupBundle(file, accounts);
       setSettings(imported.settings);
       setAccounts(imported.accounts);
-      showToast("配置已导入");
+      showToast("已导入配置");
     } catch (error) {
-      showToast(`导入失败: ${error instanceof Error ? error.message : String(error)}`);
+      showToast(`导入失败 · ${error instanceof Error ? error.message : String(error)}`);
     }
   };
 
   const handleRename = async (id: string, displayName: string) => {
     const name = displayName.trim();
     if (!name) {
-      showToast("名称不能为空");
+      showToast("请输入名称");
       return;
     }
 
@@ -377,79 +382,144 @@ const App: React.FC = () => {
       await api.saveAccounts({ version: "1.0", accounts: next });
       showToast("名称已更新");
     } catch (error) {
-      showToast(`名称保存失败: ${error instanceof Error ? error.message : String(error)}`);
+      showToast(`保存失败 · ${error instanceof Error ? error.message : String(error)}`);
       await refreshAccounts(true);
     }
   };
 
   return (
-    <div
-      className={
-        isTrayMode
-          ? "min-h-screen bg-transparent p-2 text-stone-100"
-          : "min-h-screen flex flex-col bg-[radial-gradient(circle_at_top_left,_rgba(99,102,241,0.16),_transparent_24%),radial-gradient(circle_at_top_right,_rgba(56,189,248,0.1),_transparent_22%),linear-gradient(180deg,_#f6f8ff_0%,_#ffffff_42%,_#f9fbff_100%)] text-slate-900"
-      }
-    >
-      {!isTrayMode && (
-        <Header
-          onImportConfig={handleImportConfig}
-          onImportCurrentAuth={handleImportCurrentAuth}
-          onSmartSwitch={handleSmartSwitch}
-          isImportingCurrentAuth={isImportingCurrentAuth}
-          isSmartSwitching={isSmartSwitching}
-          unmanagedCurrentAuthLabel={unmanagedCurrentAuthLabel}
-        />
-      )}
-      <main className={isTrayMode ? "" : "flex-1 overflow-auto px-4 pb-8 pt-4 sm:px-6 sm:pt-3 lg:px-8"}>
-        {isTrayMode ? (
-          <TrayPanel
-            isRefreshing={isRefreshing}
-            refreshingAccountIds={refreshingAccountIds}
-            isImportingCurrentAuth={isImportingCurrentAuth}
-            isSmartSwitching={isSmartSwitching}
-            unmanagedCurrentAuthLabel={unmanagedCurrentAuthLabel}
-            onRefreshUsage={() => refreshAccounts(false)}
-            onRefreshAccount={refreshAccount}
-            onImportCurrentAuth={handleImportCurrentAuth}
-            onSmartSwitch={handleSmartSwitch}
-            onSwitch={(account) => void requestSwitch(account)}
-          />
-        ) : (
-          <AccountList
-            isRefreshing={isRefreshing}
-            refreshingAccountIds={refreshingAccountIds}
-            onDelete={(id) => setConfirmState({ kind: "delete", accountId: id })}
-            onRefreshAccount={refreshAccount}
-            onRefreshUsage={() => refreshAccounts(false)}
-            onRename={handleRename}
-            onSwitch={(account) => void requestSwitch(account)}
-          />
-        )}
-      </main>
-      <SwitchProgress />
-      {isAddModalOpen && <AddAccountModal />}
-      {isSettingsOpen && <SettingsModal />}
-      <Toast />
-      {confirmState?.kind === "delete" && (
+    <LazyMotion features={domAnimation}>
+      <MotionConfig transition={{ duration: 0.72, ease: MOTION_EASE }}>
+        <div
+          className={
+            isTrayMode
+              ? "min-h-screen bg-transparent p-2 text-stone-100"
+              : "relative min-h-screen overflow-hidden text-slate-900"
+          }
+        >
+          {!isTrayMode && (
+            <>
+              <motion.div
+                aria-hidden
+                className="pointer-events-none fixed inset-x-0 top-0 -z-20 h-[460px] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.96),transparent_60%)]"
+                {...revealUp(prefersReducedMotion, 0)}
+              />
+              <div className="pointer-events-none fixed inset-0 -z-30 bg-[linear-gradient(180deg,rgba(255,255,255,0.84),rgba(240,244,248,0.62)_40%,rgba(235,240,246,0.88))]" />
+              <div className="pointer-events-none fixed inset-0 -z-20 shell-grid opacity-[0.18]" />
+              <motion.div
+                aria-hidden
+                className="pointer-events-none fixed left-[-10rem] top-[6rem] -z-10 h-72 w-72 rounded-full bg-sky-100/28 blur-3xl"
+                animate={
+                  prefersReducedMotion
+                    ? { opacity: 0.8 }
+                    : { opacity: [0.55, 0.9, 0.55], y: [0, -18, 0] }
+                }
+                transition={
+                  prefersReducedMotion
+                    ? { duration: 0.2 }
+                    : { duration: 16, repeat: Infinity, ease: "easeInOut" }
+                }
+              />
+              <motion.div
+                aria-hidden
+                className="pointer-events-none fixed right-[-8rem] top-[10rem] -z-10 h-80 w-80 rounded-full bg-cyan-50/32 blur-3xl"
+                animate={
+                  prefersReducedMotion
+                    ? { opacity: 0.75 }
+                    : { opacity: [0.5, 0.82, 0.5], y: [0, 14, 0] }
+                }
+                transition={
+                  prefersReducedMotion
+                    ? { duration: 0.2 }
+                    : { duration: 18, repeat: Infinity, ease: "easeInOut" }
+                }
+              />
+            </>
+          )}
+          {!isTrayMode && (
+            <Header
+              onImportConfig={handleImportConfig}
+              onImportCurrentAuth={handleImportCurrentAuth}
+              onSmartSwitch={handleSmartSwitch}
+              currentView={currentView}
+              onViewChange={setCurrentView}
+              isImportingCurrentAuth={isImportingCurrentAuth}
+              isSmartSwitching={isSmartSwitching}
+              unmanagedCurrentAuthLabel={unmanagedCurrentAuthLabel}
+            />
+          )}
+          <main
+            className={
+              isTrayMode
+                ? ""
+                : "relative z-10 mx-auto w-full max-w-[1520px] overflow-auto px-4 pb-10 pt-1 sm:px-6 sm:pt-2 lg:px-8 lg:pb-14"
+            }
+          >
+            {isTrayMode ? (
+              <TrayPanel
+                isRefreshing={isRefreshing}
+                refreshingAccountIds={refreshingAccountIds}
+                isImportingCurrentAuth={isImportingCurrentAuth}
+                isSmartSwitching={isSmartSwitching}
+                unmanagedCurrentAuthLabel={unmanagedCurrentAuthLabel}
+                onRefreshUsage={() => refreshAccounts(false)}
+                onRefreshAccount={refreshAccount}
+                onImportCurrentAuth={handleImportCurrentAuth}
+                onSmartSwitch={handleSmartSwitch}
+                onSwitch={(account) => void requestSwitch(account)}
+              />
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.section
+                  key={currentView}
+                  {...revealUp(prefersReducedMotion, 0.04)}
+                >
+                  {currentView === "accounts" ? (
+                    <AccountList
+                      isRefreshing={isRefreshing}
+                      refreshingAccountIds={refreshingAccountIds}
+                      onDelete={(id) => setConfirmState({ kind: "delete", accountId: id })}
+                      onRefreshAccount={refreshAccount}
+                      onRefreshUsage={() => refreshAccounts(false)}
+                      onRename={handleRename}
+                      onSwitch={(account) => void requestSwitch(account)}
+                    />
+                  ) : (
+                    <UsageStatsPage
+                      isRefreshing={isRefreshing}
+                      onRefreshUsage={() => refreshAccounts(false)}
+                    />
+                  )}
+                </motion.section>
+              </AnimatePresence>
+            )}
+          </main>
+          <SwitchProgress />
+          {isAddModalOpen && <AddAccountModal />}
+          {isSettingsOpen && <SettingsModal />}
+          <Toast />
+          {confirmState?.kind === "delete" && (
         <ConfirmDialog
           title="删除账户"
-          message="确定要删除此账户吗？其保存的凭证和兼容会话目录会被移除，但不会清空当前共享会话。"
-          confirmLabel="确认删除"
+          message="删除后会移除已保存的凭证和兼容会话目录。"
+          confirmLabel="删除"
           onConfirm={handleDelete}
           onCancel={() => setConfirmState(null)}
         />
-      )}
-      {confirmState?.kind === "switch" && (
+          )}
+          {confirmState?.kind === "switch" && (
         <ConfirmDialog
-          title="确认切换账户"
-          message={`切换到 ${confirmState.account.displayName} 后，会自动关闭并重新打开 Codex 桌面应用。当前正在运行的桌面端会话会被中断。`}
-          confirmLabel="继续切换"
+          title="切换账户"
+          message={`切换到 ${confirmState.account.displayName} 后，Codex 会重新打开。当前桌面会话会中断。`}
+          confirmLabel="继续"
           tone="primary"
           onConfirm={() => void handleConfirmSwitch()}
           onCancel={() => setConfirmState(null)}
-        />
-      )}
-    </div>
+            />
+          )}
+        </div>
+      </MotionConfig>
+    </LazyMotion>
   );
 };
 
