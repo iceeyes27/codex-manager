@@ -1,6 +1,6 @@
 # Codex Manager
 
-一个用于管理多个 Codex 账号的桌面与命令行工具，支持在桌面端和命令行中进行账号切换、配额查看与管理。
+一个用于管理多个 Codex 账号的桌面与命令行工具，支持账号切换、真实额度查看、当前会话 Token 统计，以及更适合日常使用的桌面工作台体验。
 
 [English](./README.en.md)
 
@@ -12,7 +12,7 @@
 
 ## 预览
 
-主窗口：
+主工作台：
 
 <img src="./docs/preview.png" alt="Codex Manager Preview" width="960" />
 
@@ -36,8 +36,11 @@ Codex Manager 把这些操作收敛成桌面窗口、托盘面板和命令行里
 - 一键导入当前本地授权
 - 切换账号时保留共享的 `~/.codex/sessions`
 - 读取真实的 5 小时 / 每周额度数据
+- 统计当前 live 会话 Token，并在统计页实时刷新
+- 从当前版本开始按账号记录分段 Token 累计
 - 支持全局刷新和单账号刷新
 - 支持按额度情况执行 Smart Switch
+- 提供账户工作台与统计视图两种页面
 - 提供托盘快捷面板
 - 支持切换后按设置重启 Codex Desktop
 - 支持备份导出和设置持久化
@@ -106,7 +109,8 @@ npm link
 1. 打开 Codex Manager
 2. 导入当前授权，或通过 OAuth 添加账号
 3. 刷新额度数据
-4. 手动切换、执行 Smart Switch，或者直接用 `codex-manager switch ...`
+4. 在“账户”页切换账号，在“统计”页查看当前会话 Token 与调度判断
+5. 手动切换、执行 Smart Switch，或者直接用 `codex-manager switch ...`
 
 ## 当前账号识别
 
@@ -141,6 +145,18 @@ npm link
 - 优先选择 `5h` 使用比例更低的账号
 - 如果 `5h` 相同，再比较每周使用比例
 - 如果当前账号已经是最佳选择，则不重复切换
+
+## Token 统计
+
+统计页会优先读取当前 live 会话对应的 rollout 日志，并自动轮询刷新，所以当前会话的 Token 会持续增长。
+
+账号级 Token 采用“分段记账”：
+
+1. 当前账号持续累加当前 live 会话的 Token
+2. 每次切换账号时，把这一段 Token 记到切出的账号名下
+3. 切入的新账号从当前时刻重新开始累计
+
+这意味着账号级 Token 从启用当前版本后会逐步变得准确，但更早之前的共享历史会话无法被精确反推到某个账号。
 
 ## 托盘面板
 
@@ -177,7 +193,7 @@ npm link
 
 应用数据保存在系统 App Data 目录。主要文件包括：
 
-- `accounts.json`：账号列表和 UI 状态
+- `accounts.json`：账号列表、UI 状态和账号级 Token 分段累计
 - `settings.json`：主题、代理、自动刷新、切换后自动重启等设置
 - `credentials/<account-id>.json`：每个账号保存的凭证
 - `sessions/<account-id>/`：旧版兼容会话目录
@@ -240,3 +256,4 @@ cargo check
 - 自动重启 Codex Desktop 当前主要在 Windows 上完成验证
 - 安装器的端到端验证目前仍以 Windows 为主，macOS / Linux 还需要更多实机测试
 - 浏览器预览模式仍保留 mock fallback，仅用于界面预览
+- 账号级 Token 是基于共享会话的分段记账，不是历史全量精确归因

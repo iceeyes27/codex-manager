@@ -1,6 +1,6 @@
 # Codex Manager
 
-A desktop and command-line manager for multiple Codex accounts, supporting account switching plus quota visibility and management from both the desktop app and the CLI.
+A desktop and command-line manager for multiple Codex accounts, with account switching, real quota visibility, live session token tracking, and a calmer desktop workspace for daily use.
 
 [简体中文](./README.md)
 
@@ -12,7 +12,7 @@ A desktop and command-line manager for multiple Codex accounts, supporting accou
 
 ## Preview
 
-Main window:
+Primary workspace:
 
 <img src="./docs/preview.png" alt="Codex Manager Preview" width="960" />
 
@@ -36,8 +36,11 @@ Codex Manager reduces both to a few desktop and tray actions.
 - Import the current live auth with one click
 - Keep the shared `~/.codex/sessions` working set intact when switching
 - Read real 5-hour and weekly quota usage
+- Track live session tokens and refresh them automatically in the stats view
+- Record per-account token segments from this version onward
 - Refresh usage globally or per account
 - Smart switch to the account with more available quota
+- Switch between account workspace and stats workspace views
 - Use a translucent tray panel for quick switching
 - Optionally restart the Codex desktop app after switching
 - Export backups and persist app settings
@@ -106,7 +109,8 @@ That local command is now only a thin wrapper and forwards to the Rust CLI imple
 1. Launch Codex Manager.
 2. Import the current auth or add an account via OAuth.
 3. Refresh usage.
-4. Switch manually, use Smart Switch, or use `codex-manager switch ...`.
+4. Use the `Accounts` view for switching and the `Stats` view for live token and routing insight.
+5. Switch manually, use Smart Switch, or use `codex-manager switch ...`.
 
 ## Active Account Detection
 
@@ -141,6 +145,18 @@ Current rule set:
 - Prefer the account with the lowest `5h` usage
 - If `5h` usage is tied, compare weekly usage
 - If the active account is already the best choice, do nothing
+
+## Token Tracking
+
+The stats view reads the rollout log for the current live session and polls automatically, so the current session token count keeps moving while the session is active.
+
+Per-account token tracking uses segmented accounting:
+
+1. The active account keeps accumulating the current live session tokens
+2. When you switch away, that segment is written back to the previous account
+3. The newly active account starts a fresh segment from the switch point
+
+That means per-account token totals become accurate from this version onward, but older shared-session history cannot be perfectly attributed retroactively.
 
 ## Tray Panel
 
@@ -177,7 +193,7 @@ Stability safeguards:
 
 App data is stored in the system app-data directory. Main files include:
 
-- `accounts.json`: account list and UI state
+- `accounts.json`: account list, UI state, and per-account token ledger state
 - `settings.json`: theme, proxy, auto-refresh, and restart-after-switch settings
 - `credentials/<account-id>.json`: saved credentials per account
 - `sessions/<account-id>/`: legacy compatibility session directory
@@ -240,3 +256,4 @@ cargo check
 - Automatic Codex desktop restart is currently implemented and verified only on Windows
 - Most end-to-end installer validation so far has happened on Windows; macOS and Linux still need more real-device testing
 - Browser-only preview mode still keeps mock fallback behavior for UI inspection
+- Per-account token totals are based on segmented accounting over a shared session store, not perfect historical attribution
