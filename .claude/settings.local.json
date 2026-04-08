@@ -6,7 +6,8 @@
       "WebSearch",
       "WebFetch(domain:zread.ai)",
       "Read(//c/Users/Administrator/.claude/.ccg/prompts/codex/**)",
-      "Read(//c/Users/Administrator/.claude/.ccg/prompts/gemini/**)"
+      "Read(//c/Users/Administrator/.claude/.ccg/prompts/gemini/**)",
+      "Bash(git:*)"
     ]
   }
 }
