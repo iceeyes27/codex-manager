@@ -51,7 +51,7 @@ Codex Manager reduces both to a few desktop and tray actions.
 Recommended: download a packaged build from GitHub Releases.
 
 - Windows: `.msi` or `.exe`
-- macOS: `.pkg` or `.dmg`
+- macOS: `.dmg`
 - Linux: `.deb`, `.rpm`, or `.AppImage`
 
 Releases: <https://github.com/davaded/codex-manager/releases>
@@ -63,7 +63,6 @@ After installation, the `codex-manager` command behaves like this:
 | Platform | Recommended package | CLI availability |
 | --- | --- | --- |
 | Windows | `.exe` or `.msi` | Installed to `PATH` automatically |
-| macOS | `.pkg` | Linked to `/usr/local/bin/codex-manager` automatically |
 | macOS | `.dmg` | Use the bundled helper script once |
 | Linux | `.deb` or `.rpm` | Available directly as `codex-manager` |
 | Linux | `.AppImage` | Use the helper script once, or keep it portable |
@@ -71,7 +70,7 @@ After installation, the `codex-manager` command behaves like this:
 Notes:
 
 - On Windows, reopen your terminal after installation so the new `PATH` is picked up.
-- On macOS, prefer the `.pkg` build if you want `codex-manager` available immediately in Terminal.
+- On macOS, the release ships as a `.dmg`. If you also want a global `codex-manager` command, run the bundled helper script once after dragging the app into `/Applications`.
 - On Linux, prefer `.deb` or `.rpm` if you want a package-managed CLI experience.
 - The app reads and writes `~/.codex/auth.json`, so Codex CLI should already be installed and working.
 
