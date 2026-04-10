@@ -154,7 +154,9 @@ fn extract_token_usage(info: TokenCountInfo) -> Option<TokenUsageInfo> {
     info.total_token_usage.or(info.last_token_usage)
 }
 
-async fn parse_rollout_usage(path: &PathBuf) -> Result<(Option<String>, Option<TokenUsageInfo>), String> {
+async fn parse_rollout_usage(
+    path: &PathBuf,
+) -> Result<(Option<String>, Option<TokenUsageInfo>), String> {
     let content = fs::read_to_string(path).await.map_err(|e| e.to_string())?;
     let mut session_model: Option<String> = None;
     let mut session_latest_tokens: Option<TokenUsageInfo> = None;
@@ -223,13 +225,16 @@ async fn read_usage_stats_summary_inner() -> Result<UsageStatsSummary, String> {
     session_files.sort();
 
     let latest_session = latest_shared_session().await?;
-    let current_session_path = latest_session.as_ref().and_then(|session| {
-        session_files.iter().find(|path| {
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| name.contains(&session.id))
+    let current_session_path = latest_session
+        .as_ref()
+        .and_then(|session| {
+            session_files.iter().find(|path| {
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .is_some_and(|name| name.contains(&session.id))
+            })
         })
-    }).cloned();
+        .cloned();
 
     let recent_files: Vec<PathBuf> = session_files.iter().rev().take(40).cloned().collect();
     let mut total_tokens = TokenUsageInfo::default();
@@ -602,7 +607,8 @@ mod tests {
             }
         }"#;
 
-        let parsed: EventMessagePayload = serde_json::from_str(payload).expect("payload should parse");
+        let parsed: EventMessagePayload =
+            serde_json::from_str(payload).expect("payload should parse");
         let usage = extract_token_usage(parsed.info.expect("token info should exist"))
             .expect("usage should be extracted");
 

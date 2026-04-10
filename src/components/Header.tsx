@@ -15,7 +15,7 @@ interface HeaderProps {
   unmanagedCurrentAuthLabel: string | null;
 }
 
-const APP_VERSION = "v1.2.1";
+const APP_VERSION = "v1.2.4";
 
 const Header: React.FC<HeaderProps> = ({
   onImportConfig,

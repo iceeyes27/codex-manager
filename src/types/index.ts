@@ -1,3 +1,5 @@
+export type AccountRateLimitStatus = "available" | "invalid" | "unknown";
+
 export interface Account {
   id: string;
   displayName: string;
@@ -10,6 +12,8 @@ export interface Account {
   usageLedger?: AccountUsageLedger | null;
   rateLimits?: RateLimitSnapshot | null;
   rateLimitsError?: string | null;
+  accountStatus?: AccountRateLimitStatus | null;
+  accountStatusReason?: string | null;
 }
 
 export interface SessionInfo {
@@ -140,8 +144,10 @@ export interface RateLimitSnapshot {
 }
 
 export interface GetAccountRateLimitsResponse {
-  rateLimits: RateLimitSnapshot;
+  rateLimits: RateLimitSnapshot | null;
   rateLimitsByLimitId?: Record<string, RateLimitSnapshot> | null;
+  accountStatus?: AccountRateLimitStatus | null;
+  accountStatusReason?: string | null;
 }
 
 export interface BackupBundleAccount {

@@ -132,11 +132,23 @@ pub struct RateLimitSnapshot {
     pub secondary: Option<RateLimitWindow>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub enum AccountRateLimitStatus {
+    Available,
+    Invalid,
+    Unknown,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GetAccountRateLimitsResponse {
-    pub rate_limits: RateLimitSnapshot,
+    pub rate_limits: Option<RateLimitSnapshot>,
     pub rate_limits_by_limit_id: Option<std::collections::HashMap<String, RateLimitSnapshot>>,
+    #[serde(default)]
+    pub account_status: Option<AccountRateLimitStatus>,
+    #[serde(default)]
+    pub account_status_reason: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]

@@ -3,7 +3,12 @@ import { clsx } from "clsx";
 import { motion, useReducedMotion } from "motion/react";
 import { Account } from "../types";
 import { useAccountStore } from "../store/accountStore";
-import { formatRelativeTime, getAccountInsight } from "../utils/dashboard";
+import {
+  formatRelativeTime,
+  getAccountInsight,
+  getAccountStatusReason,
+  isAccountInvalid,
+} from "../utils/dashboard";
 import { hoverLift } from "../utils/motion";
 
 const UsageChart = React.lazy(() => import("./UsageChart"));
@@ -28,6 +33,7 @@ const ROLE_STYLES = {
   business: "border-cyan-100 bg-cyan-50/85 text-cyan-700",
   free: "border-emerald-100 bg-emerald-50/85 text-emerald-700",
   unknown: "border-slate-200 bg-slate-50/85 text-slate-600",
+  invalid: "border-rose-100 bg-rose-50/90 text-rose-700",
 } as const;
 
 const AccountCard: React.FC<AccountCardProps> = ({
@@ -54,7 +60,18 @@ const AccountCard: React.FC<AccountCardProps> = ({
   const isCompact = variant === "compact";
   const isSwitchTarget = switchState.toAccountId === account.id && isSwitching;
   const isQuotaRefreshing = isRefreshing || isRefreshingSelf;
-  const statusLabel = isActive ? "当前" : isSwitchTarget ? "切换中" : "待命";
+  const isInvalid = isAccountInvalid(account);
+  const switchDisabled = isActive || isSwitching || isInvalid;
+  const statusLabel = isInvalid
+    ? isActive
+      ? "当前已失效"
+      : "已失效"
+    : isActive
+      ? "当前"
+      : isSwitchTarget
+        ? "切换中"
+        : "待命";
+  const invalidReason = getAccountStatusReason(account);
 
   useEffect(() => {
     setDraftName(account.displayName);
@@ -105,9 +122,14 @@ const AccountCard: React.FC<AccountCardProps> = ({
                 </svg>
               </button>
             </div>
-            {isActive && (
+            {isActive && !isInvalid && (
               <span className="rounded-full border border-sky-200 bg-sky-50 px-2.5 py-1 text-[10px] font-semibold text-sky-700">
                 当前
+              </span>
+            )}
+            {isInvalid && (
+              <span className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[10px] font-semibold text-rose-700">
+                失效
               </span>
             )}
             {isRecommended && !isActive && (
@@ -161,16 +183,18 @@ const AccountCard: React.FC<AccountCardProps> = ({
             {isQuotaRefreshing ? "刷新中" : "刷新"}
           </button>
           <button
-            onClick={() => !isActive && onSwitch(account)}
-            disabled={isActive || isSwitching}
+            onClick={() => !switchDisabled && onSwitch(account)}
+            disabled={switchDisabled}
             className={clsx(
               "rounded-full px-4 py-2 text-xs font-semibold transition-all disabled:cursor-not-allowed",
-              isActive
-                ? "border border-sky-100 bg-sky-50 text-sky-600"
-                : "bg-slate-950 text-white hover:-translate-y-0.5 disabled:bg-slate-800/70",
+              isInvalid
+                ? "border border-rose-100 bg-rose-50 text-rose-600 disabled:bg-rose-50"
+                : isActive
+                  ? "border border-sky-100 bg-sky-50 text-sky-600"
+                  : "bg-slate-950 text-white hover:-translate-y-0.5 disabled:bg-slate-800/70",
             )}
           >
-            {isActive ? "当前使用中" : isSwitchTarget ? "切换中" : "切换"}
+            {isInvalid ? "账号失效" : isActive ? "当前使用中" : isSwitchTarget ? "切换中" : "切换"}
           </button>
           <button
             onClick={() => onDelete(account.id)}
@@ -241,9 +265,14 @@ const AccountCard: React.FC<AccountCardProps> = ({
               <h3 className="truncate text-[2rem] font-black tracking-[-0.06em] text-white">
                 {account.displayName}
               </h3>
-              {isActive && (
+              {isActive && !isInvalid && (
                 <span className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[10px] font-semibold text-sky-100">
                   当前
+                </span>
+              )}
+              {isInvalid && (
+                <span className="rounded-full border border-rose-200/50 bg-rose-500/14 px-3 py-1 text-[10px] font-semibold text-rose-100">
+                  失效
                 </span>
               )}
               {isRecommended && !isActive && (
@@ -278,16 +307,18 @@ const AccountCard: React.FC<AccountCardProps> = ({
 
             <div className="mt-8 flex items-center gap-3">
               <button
-                onClick={() => !isActive && onSwitch(account)}
-                disabled={isActive || isSwitching}
+                onClick={() => !switchDisabled && onSwitch(account)}
+                disabled={switchDisabled}
                 className={clsx(
                   "flex-1 rounded-full px-4 py-3 text-sm font-semibold transition-all disabled:cursor-not-allowed",
-                  isActive
-                    ? "border border-white/12 bg-white/10 text-white"
-                    : "bg-white text-slate-950 shadow-[0_18px_32px_-24px_rgba(255,255,255,0.7)] disabled:bg-white/50",
+                  isInvalid
+                    ? "border border-rose-200/50 bg-rose-500/14 text-rose-50 disabled:bg-rose-500/14"
+                    : isActive
+                      ? "border border-white/12 bg-white/10 text-white"
+                      : "bg-white text-slate-950 shadow-[0_18px_32px_-24px_rgba(255,255,255,0.7)] disabled:bg-white/50",
                 )}
               >
-                {isActive ? "当前使用中" : isSwitchTarget ? "切换中..." : "切换到此账号"}
+                {isInvalid ? "账号失效" : isActive ? "当前使用中" : isSwitchTarget ? "切换中..." : "切换到此账号"}
               </button>
               <button
                 onClick={() => void onRefresh()}
@@ -327,21 +358,25 @@ const AccountCard: React.FC<AccountCardProps> = ({
                   <span
                     className={clsx(
                       "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
-                      isActive
-                        ? "bg-sky-100 text-sky-700"
-                        : isSwitchTarget
-                          ? "bg-amber-100 text-amber-700"
-                          : "bg-white text-slate-600",
+                      isInvalid
+                        ? "bg-rose-100 text-rose-700"
+                        : isActive
+                          ? "bg-sky-100 text-sky-700"
+                          : isSwitchTarget
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-white text-slate-600",
                     )}
                   >
                     <span
                       className={clsx(
                         "h-1.5 w-1.5 rounded-full",
-                        isActive
-                          ? "bg-sky-500"
-                          : isSwitchTarget
-                            ? "bg-amber-500 animate-pulse"
-                            : "bg-emerald-500",
+                        isInvalid
+                          ? "bg-rose-500"
+                          : isActive
+                            ? "bg-sky-500"
+                            : isSwitchTarget
+                              ? "bg-amber-500 animate-pulse"
+                              : "bg-emerald-500",
                       )}
                     />
                     {statusLabel}
@@ -358,10 +393,19 @@ const AccountCard: React.FC<AccountCardProps> = ({
             </div>
 
             {!insight.hasRealRateLimits && (
-              <div className="rounded-[20px] border border-amber-200 bg-amber-50/90 px-3 py-2.5 text-[11px] text-amber-700">
-                {account.rateLimitsError
-                  ? `读取失败 · ${account.rateLimitsError}`
-                  : "当前还没有官方配额数据。"}
+              <div
+                className={clsx(
+                  "rounded-[20px] px-3 py-2.5 text-[11px]",
+                  isInvalid
+                    ? "border border-rose-200 bg-rose-50/90 text-rose-700"
+                    : "border border-amber-200 bg-amber-50/90 text-amber-700",
+                )}
+              >
+                {isInvalid
+                  ? `检测到账号失效 · ${invalidReason ?? "请重新登录该账号"}`
+                  : account.rateLimitsError
+                    ? `读取失败 · ${account.rateLimitsError}`
+                    : "当前还没有官方配额数据。"}
               </div>
             )}
 
@@ -398,7 +442,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
         <div className="pointer-events-none absolute right-[-3rem] top-[-2rem] h-44 w-44 rounded-full bg-sky-100/60 blur-3xl" />
       )}
 
-      {isRecommended && !isActive && (
+      {isRecommended && !isActive && !isInvalid && (
         <div className="absolute right-5 top-5 rounded-full border border-emerald-200 bg-emerald-50/92 px-3 py-1 text-[10px] font-semibold text-emerald-700">
           下一位
         </div>
@@ -499,9 +543,14 @@ const AccountCard: React.FC<AccountCardProps> = ({
           </div>
         </div>
 
-        {isActive && (
+        {isActive && !isInvalid && (
           <div className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-[10px] font-semibold text-sky-700">
             当前
+          </div>
+        )}
+        {isInvalid && (
+          <div className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-[10px] font-semibold text-rose-700">
+            失效
           </div>
         )}
       </div>
@@ -556,10 +605,19 @@ const AccountCard: React.FC<AccountCardProps> = ({
       </div>
 
       {!insight.hasRealRateLimits && (
-        <div className="mt-3 rounded-[22px] border border-amber-200 bg-amber-50/90 px-3 py-2.5 text-[11px] text-amber-700">
-          {account.rateLimitsError
-            ? `官方配额读取失败：${account.rateLimitsError}`
-            : "当前未拿到官方配额数据，不再展示估算值。"}
+        <div
+          className={clsx(
+            "mt-3 rounded-[22px] px-3 py-2.5 text-[11px]",
+            isInvalid
+              ? "border border-rose-200 bg-rose-50/90 text-rose-700"
+              : "border border-amber-200 bg-amber-50/90 text-amber-700",
+          )}
+        >
+          {isInvalid
+            ? `检测到账号失效：${invalidReason ?? "请重新登录该账号"}`
+            : account.rateLimitsError
+              ? `官方配额读取失败：${account.rateLimitsError}`
+              : "当前未拿到官方配额数据，不再展示估算值。"}
         </div>
       )}
 
@@ -604,6 +662,8 @@ const AccountCard: React.FC<AccountCardProps> = ({
               "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
               isActive
                 ? "bg-sky-100 text-sky-700"
+                : isInvalid
+                  ? "bg-rose-100 text-rose-700"
                 : isSwitchTarget
                   ? "bg-amber-100 text-amber-700"
                   : "bg-white text-slate-600",
@@ -614,6 +674,8 @@ const AccountCard: React.FC<AccountCardProps> = ({
                 "h-1.5 w-1.5 rounded-full",
                 isActive
                   ? "bg-sky-500"
+                  : isInvalid
+                    ? "bg-rose-500"
                   : isSwitchTarget
                     ? "bg-amber-500 animate-pulse"
                     : "bg-emerald-500",
@@ -624,18 +686,22 @@ const AccountCard: React.FC<AccountCardProps> = ({
           <span
             className={clsx(
               "text-[10px]",
-              isActive
-                ? "text-sky-600"
-                : isSwitchTarget
-                  ? "text-amber-600"
-                  : "text-slate-500",
+              isInvalid
+                ? "text-rose-600"
+                : isActive
+                  ? "text-sky-600"
+                  : isSwitchTarget
+                    ? "text-amber-600"
+                    : "text-slate-500",
             )}
           >
-            {isActive
-              ? "当前账号已写入 auth.json"
-              : isSwitchTarget
-              ? "正在切换共享会话"
-              : "切换后继续当前会话"}
+            {isInvalid
+              ? "该账号已不再参与切换"
+              : isActive
+                ? "当前账号已写入 auth.json"
+                : isSwitchTarget
+                  ? "正在切换共享会话"
+                  : "切换后继续当前会话"}
           </span>
         </div>
       </div>
@@ -644,16 +710,18 @@ const AccountCard: React.FC<AccountCardProps> = ({
 
       <div className={clsx("flex items-center gap-3", isFeatured && "sm:max-w-[460px]")}>
         <button
-          onClick={() => !isActive && onSwitch(account)}
-          disabled={isActive || isSwitching}
+          onClick={() => !switchDisabled && onSwitch(account)}
+          disabled={switchDisabled}
           className={clsx(
             "flex-1 rounded-full px-4 py-3 text-sm font-semibold transition-all disabled:cursor-not-allowed",
-            isActive
-              ? "border border-sky-100 bg-sky-50 text-sky-600 shadow-none"
-              : "primary-action text-white disabled:cursor-not-allowed disabled:bg-slate-800/70",
+            isInvalid
+              ? "border border-rose-200 bg-rose-50 text-rose-600 shadow-none"
+              : isActive
+                ? "border border-sky-100 bg-sky-50 text-sky-600 shadow-none"
+                : "primary-action text-white disabled:cursor-not-allowed disabled:bg-slate-800/70",
           )}
         >
-          {isActive ? "当前使用中" : isSwitchTarget ? "切换中..." : "切换到此账号"}
+          {isInvalid ? "账号失效" : isActive ? "当前使用中" : isSwitchTarget ? "切换中..." : "切换到此账号"}
         </button>
 
         <button

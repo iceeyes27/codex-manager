@@ -28,6 +28,7 @@
 
   body {
     @apply min-h-screen text-slate-900 antialiased;
+    margin: 0;
     background-color: var(--shell-bg);
     background-image:
       radial-gradient(circle at 8% 10%, rgba(255, 255, 255, 0.98), transparent 24%),
@@ -39,6 +40,7 @@
   body.tray-mode,
   body.tray-mode #root {
     background: transparent;
+    overflow: hidden;
   }
 
   body,

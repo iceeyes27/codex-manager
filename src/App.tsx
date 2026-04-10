@@ -19,7 +19,7 @@ import {
   formatAuthIdentityLabel,
   parseAuthIdentity,
 } from "./utils/auth";
-import { getBestQuotaAccount } from "./utils/dashboard";
+import { getAccountStatusReason, getBestQuotaAccount, isAccountInvalid } from "./utils/dashboard";
 import { useAccountSwitch } from "./hooks/useAccountSwitch";
 import { Account } from "./types";
 import { MOTION_EASE, revealUp } from "./utils/motion";
@@ -95,8 +95,9 @@ const App: React.FC = () => {
       const store = await api.loadAccounts();
       const hydrated = await hydrateAccounts(store.accounts);
       setAccounts(hydrated);
+      const invalidAccounts = hydrated.filter((account) => isAccountInvalid(account));
       const rateLimitFailures = hydrated.filter(
-        (account) => !account.rateLimits && account.rateLimitsError,
+        (account) => !isAccountInvalid(account) && !account.rateLimits && account.rateLimitsError,
       );
       const activeChanged = hydrated.some(
         (account, index) => account.isActive !== store.accounts[index]?.isActive,
@@ -104,21 +105,25 @@ const App: React.FC = () => {
       if (activeChanged) {
         await api.saveAccounts({ version: store.version, accounts: hydrated });
       }
-        if (!silent) {
-          if (rateLimitFailures.length === hydrated.length && hydrated.length > 0) {
-          showToast(`刷新失败 · ${rateLimitFailures[0].rateLimitsError}`);
-          } else if (rateLimitFailures.length > 0) {
-            showToast(
-            `部分刷新失败 · ${rateLimitFailures[0].rateLimitsError}`,
-            );
-          } else {
+      if (!silent) {
+        if (invalidAccounts.length === hydrated.length && hydrated.length > 0) {
+          showToast(`检测到 ${invalidAccounts.length} 个失效账号`);
+        } else if (rateLimitFailures.length > 0 && invalidAccounts.length > 0) {
+          showToast(
+            `部分刷新失败 · ${rateLimitFailures[0].rateLimitsError}；检测到 ${invalidAccounts.length} 个失效账号`,
+          );
+        } else if (rateLimitFailures.length > 0) {
+          showToast(`部分刷新失败 · ${rateLimitFailures[0].rateLimitsError}`);
+        } else if (invalidAccounts.length > 0) {
+          showToast(`已刷新，检测到 ${invalidAccounts.length} 个失效账号`);
+        } else {
           showToast("已刷新");
-          }
         }
-      } catch (error) {
+      }
+    } catch (error) {
         if (!silent) {
           showToast(
-          `刷新失败 · ${error instanceof Error ? error.message : String(error)}`,
+            `刷新失败 · ${error instanceof Error ? error.message : String(error)}`,
           );
         }
     } finally {
@@ -146,7 +151,11 @@ const App: React.FC = () => {
 
       updateAccount(accountId, hydrated);
 
-      if (!hydrated.rateLimits && hydrated.rateLimitsError) {
+      if (isAccountInvalid(hydrated)) {
+        showToast(
+          `${hydrated.displayName} 已标记为失效 · ${getAccountStatusReason(hydrated) ?? "登录态或账号不可用"}`,
+        );
+      } else if (!hydrated.rateLimits && hydrated.rateLimitsError) {
         showToast(`刷新失败 · ${hydrated.rateLimitsError}`);
       } else {
         showToast(`${hydrated.displayName} 已刷新`);
@@ -223,10 +232,15 @@ const App: React.FC = () => {
     try {
       const hydrated = await hydrateAccounts(accounts);
       await persistAccounts(hydrated);
+      const invalidCount = hydrated.filter((account) => isAccountInvalid(account)).length;
 
       const bestAccount = getBestQuotaAccount(hydrated);
       if (!bestAccount) {
-        throw new Error("当前没有足够数据");
+        throw new Error(
+          invalidCount > 0
+            ? `当前没有可用账号，已检测到 ${invalidCount} 个失效账号`
+            : "当前没有足够数据",
+        );
       }
       if (bestAccount.isActive) {
         showToast(`${bestAccount.displayName} 已是当前最佳选择`);
@@ -393,7 +407,7 @@ const App: React.FC = () => {
         <div
           className={
             isTrayMode
-              ? "min-h-screen bg-transparent p-2 text-stone-100"
+              ? "h-screen overflow-hidden bg-transparent text-stone-100"
               : "relative min-h-screen overflow-hidden text-slate-900"
           }
         >
@@ -451,22 +465,13 @@ const App: React.FC = () => {
           <main
             className={
               isTrayMode
-                ? ""
+                ? "h-full"
                 : "relative z-10 mx-auto w-full max-w-[1520px] overflow-auto px-4 pb-10 pt-1 sm:px-6 sm:pt-2 lg:px-8 lg:pb-14"
             }
           >
             {isTrayMode ? (
               <TrayPanel
-                isRefreshing={isRefreshing}
-                refreshingAccountIds={refreshingAccountIds}
-                isImportingCurrentAuth={isImportingCurrentAuth}
-                isSmartSwitching={isSmartSwitching}
                 unmanagedCurrentAuthLabel={unmanagedCurrentAuthLabel}
-                onRefreshUsage={() => refreshAccounts(false)}
-                onRefreshAccount={refreshAccount}
-                onImportCurrentAuth={handleImportCurrentAuth}
-                onSmartSwitch={handleSmartSwitch}
-                onSwitch={(account) => void requestSwitch(account)}
               />
             ) : (
               <AnimatePresence mode="wait">

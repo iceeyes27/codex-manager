@@ -13,7 +13,9 @@ fn temp_path_for(target: &Path) -> io::Result<PathBuf> {
     let file_name = target
         .file_name()
         .and_then(|name| name.to_str())
-        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "target path has no file name"))?;
+        .ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidInput, "target path has no file name")
+        })?;
 
     Ok(parent.join(format!(".{file_name}.tmp-{}", Uuid::new_v4())))
 }
@@ -25,7 +27,11 @@ fn replace_file(from: &Path, to: &Path) -> io::Result<()> {
         MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH,
     };
 
-    let from_wide: Vec<u16> = from.as_os_str().encode_wide().chain(iter::once(0)).collect();
+    let from_wide: Vec<u16> = from
+        .as_os_str()
+        .encode_wide()
+        .chain(iter::once(0))
+        .collect();
     let to_wide: Vec<u16> = to.as_os_str().encode_wide().chain(iter::once(0)).collect();
 
     let replaced = unsafe {

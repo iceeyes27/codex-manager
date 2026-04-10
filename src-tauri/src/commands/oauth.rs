@@ -82,10 +82,7 @@ impl Default for OAuthFlowManager {
     }
 }
 
-async fn send_result(
-    state: &Arc<CallbackState>,
-    result: Result<(String, String), String>,
-) {
+async fn send_result(state: &Arc<CallbackState>, result: Result<(String, String), String>) {
     let mut tx = state.result_tx.lock().await;
     if let Some(sender) = tx.take() {
         let _ = sender.send(result);
@@ -99,10 +96,7 @@ async fn shutdown_flow(state: &Arc<CallbackState>) {
     }
 }
 
-async fn finish_flow(
-    state: &Arc<CallbackState>,
-    result: Result<(String, String), String>,
-) {
+async fn finish_flow(state: &Arc<CallbackState>, result: Result<(String, String), String>) {
     send_result(state, result).await;
     shutdown_flow(state).await;
 }

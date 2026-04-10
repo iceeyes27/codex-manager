@@ -52,13 +52,21 @@ export async function hydrateAccounts(accounts: Account[]): Promise<Account[]> {
     accounts.map(async (account) => {
       const rateLimitResult = await api
         .readAccountRateLimits(account.id)
-        .then((rateLimits) => ({
-          rateLimits,
-          rateLimitsError: null,
+        .then((result) => ({
+          rateLimits: result.rateLimits ?? null,
+          rateLimitsError:
+            result.accountStatus === "invalid"
+              ? result.accountStatusReason ?? "账号已失效或不可用"
+              : null,
+          accountStatus:
+            result.accountStatus ?? (result.rateLimits ? "available" : "unknown"),
+          accountStatusReason: result.accountStatusReason ?? null,
         }))
         .catch((error: unknown) => ({
           rateLimits: null,
           rateLimitsError: error instanceof Error ? error.message : String(error),
+          accountStatus: "unknown" as const,
+          accountStatusReason: null,
         }));
       const isActive = preserveStoredActive
         ? account.isActive
@@ -73,6 +81,8 @@ export async function hydrateAccounts(accounts: Account[]): Promise<Account[]> {
           sessionInfo: activeSessionInfo ?? account.sessionInfo,
           rateLimits: rateLimitResult.rateLimits,
           rateLimitsError: rateLimitResult.rateLimitsError,
+          accountStatus: rateLimitResult.accountStatus,
+          accountStatusReason: rateLimitResult.accountStatusReason,
         };
       }
 
@@ -82,6 +92,8 @@ export async function hydrateAccounts(accounts: Account[]): Promise<Account[]> {
         sessionInfo: account.sessionInfo,
         rateLimits: rateLimitResult.rateLimits,
         rateLimitsError: rateLimitResult.rateLimitsError,
+        accountStatus: rateLimitResult.accountStatus,
+        accountStatusReason: rateLimitResult.accountStatusReason,
       };
     }),
   );

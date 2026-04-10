@@ -13,7 +13,15 @@ export interface QuotaMetric {
 
 export interface AccountInsight {
   roleLabel: string;
-  roleTone: "plus" | "pro" | "team" | "enterprise" | "business" | "free" | "unknown";
+  roleTone:
+    | "plus"
+    | "pro"
+    | "team"
+    | "enterprise"
+    | "business"
+    | "free"
+    | "unknown"
+    | "invalid";
   hourlyQuota: QuotaMetric;
   weeklyQuota: QuotaMetric;
   syncLabel: string;
@@ -76,7 +84,19 @@ function formatSyncTime(iso: string | null): string {
   }
 }
 
+export function isAccountInvalid(account: Account): boolean {
+  return account.accountStatus === "invalid";
+}
+
+export function getAccountStatusReason(account: Account): string | null {
+  return account.accountStatusReason ?? account.rateLimitsError ?? null;
+}
+
 function deriveRole(account: Account): Pick<AccountInsight, "roleLabel" | "roleTone"> {
+  if (isAccountInvalid(account)) {
+    return { roleLabel: "失效", roleTone: "invalid" };
+  }
+
   const normalized = account.rateLimits?.planType?.trim().toLowerCase() ?? "";
 
   switch (normalized) {
@@ -97,7 +117,18 @@ function deriveRole(account: Account): Pick<AccountInsight, "roleLabel" | "roleT
   }
 }
 
-function createUnavailableMetric(label: string, suffix: string): QuotaMetric {
+function createUnavailableMetric(account: Account, label: string, suffix: string): QuotaMetric {
+  if (isAccountInvalid(account)) {
+    return {
+      label,
+      percent: null,
+      detail: getAccountStatusReason(account) ?? "账号已失效或不可用",
+      valueLabel: `失效 / ${suffix}`,
+      tone: "critical",
+      available: false,
+    };
+  }
+
   return {
     label,
     percent: null,
@@ -121,7 +152,7 @@ function deriveHourlyQuota(account: Account): QuotaMetric {
     };
   }
 
-  return createUnavailableMetric("5小时已使用配额", "5h");
+  return createUnavailableMetric(account, "5小时已使用配额", "5h");
 }
 
 function deriveWeeklyQuota(account: Account): QuotaMetric {
@@ -137,7 +168,7 @@ function deriveWeeklyQuota(account: Account): QuotaMetric {
     };
   }
 
-  return createUnavailableMetric("每周已使用配额", "week");
+  return createUnavailableMetric(account, "每周已使用配额", "week");
 }
 
 export function getHourlyUsageEfficiency(
@@ -179,27 +210,28 @@ export function getHourlyUsageEfficiency(
     };
   }
 
-  const score = clamp((usedPercent / elapsedPercent) * 100, 0, 999);
+  const paceRatio = usedPercent / elapsedPercent;
+  const score = clamp((1 - Math.min(Math.abs(paceRatio - 1), 1)) * 100, 0, 100);
 
-  if (score < 70) {
+  if (paceRatio < 0.75) {
     return {
       score,
       usedPercent,
       elapsedPercent,
       status: "underused",
       label: `${Math.round(score)}%`,
-      detail: "窗口利用偏低，当前节奏偏慢",
+      detail: "当前用量低于时间进度，节奏偏慢",
     };
   }
 
-  if (score <= 120) {
+  if (paceRatio <= 1.25) {
     return {
       score,
       usedPercent,
       elapsedPercent,
       status: "balanced",
       label: `${Math.round(score)}%`,
-      detail: "窗口利用健康，节奏比较均衡",
+      detail: "当前用量与时间进度基本同步",
     };
   }
 
@@ -209,7 +241,7 @@ export function getHourlyUsageEfficiency(
     elapsedPercent,
     status: "aggressive",
     label: `${Math.round(score)}%`,
-    detail: "窗口利用激进，账号压力偏高",
+    detail: "当前用量高于时间进度，账号压力偏高",
   };
 }
 
@@ -234,8 +266,9 @@ function getRankedQuotaAccounts(accounts: Account[]): RankedQuotaAccount[] {
   return accounts
     .filter(
       (account) =>
-        typeof account.rateLimits?.primary?.usedPercent === "number" ||
-        typeof account.rateLimits?.secondary?.usedPercent === "number",
+        !isAccountInvalid(account) &&
+        (typeof account.rateLimits?.primary?.usedPercent === "number" ||
+          typeof account.rateLimits?.secondary?.usedPercent === "number"),
     )
     .map((account) => ({
       account,

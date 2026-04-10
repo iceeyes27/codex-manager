@@ -5,7 +5,6 @@ import {
   DesktopPlatformCapabilities,
   GetAccountRateLimitsResponse,
   OAuthResult,
-  RateLimitSnapshot,
   RestoreResult,
   SessionInfo,
   SnapshotResult,
@@ -368,9 +367,18 @@ const browserApi = {
     const store = readMockAccounts();
     return store.accounts.find((item) => item.id === accountId)?.sessionInfo ?? null;
   },
-  async readAccountRateLimits(accountId: string): Promise<RateLimitSnapshot | null> {
+  async readAccountRateLimits(accountId: string): Promise<GetAccountRateLimitsResponse> {
     const store = readMockAccounts();
-    return store.accounts.find((item) => item.id === accountId)?.rateLimits ?? null;
+    const account = store.accounts.find((item) => item.id === accountId) ?? null;
+    return {
+      rateLimits: account?.rateLimits ?? null,
+      rateLimitsByLimitId:
+        account?.rateLimits?.limitId
+          ? { [account.rateLimits.limitId]: account.rateLimits }
+          : null,
+      accountStatus: account?.accountStatus ?? (account?.rateLimits ? "available" : "unknown"),
+      accountStatusReason: account?.accountStatusReason ?? null,
+    };
   },
   async getCurrentSessionsInfo(): Promise<SessionInfo> {
     const store = readMockAccounts();
@@ -452,13 +460,8 @@ export const api = isTauriRuntime
         invoke<SwitchResult>("switch_account", { fromId, toId, toAuth }),
       listAccountSessionInfo: (accountId: string) =>
         invoke<SessionInfo | null>("list_account_session_info", { accountId }),
-      readAccountRateLimits: async (accountId: string) => {
-        const response = await invoke<GetAccountRateLimitsResponse>(
-          "read_account_rate_limits",
-          { accountId },
-        );
-        return response.rateLimits ?? null;
-      },
+      readAccountRateLimits: (accountId: string) =>
+        invoke<GetAccountRateLimitsResponse>("read_account_rate_limits", { accountId }),
       getCurrentSessionsInfo: () => invoke<SessionInfo>("get_current_sessions_info"),
       readUsageStatsSummary: () => invoke<UsageStatsSummary>("read_usage_stats_summary"),
       deleteAccountSessions: (accountId: string) =>

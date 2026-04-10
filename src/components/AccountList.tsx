@@ -6,8 +6,10 @@ import AccountCard from "./AccountCard";
 import EmptyState from "./EmptyState";
 import {
   formatRelativeTime,
+  getAccountStatusReason,
   getAccountInsight,
   getRecommendedAccountId,
+  isAccountInvalid,
 } from "../utils/dashboard";
 import { hoverLift, revealUp } from "../utils/motion";
 
@@ -57,14 +59,19 @@ const AccountList: React.FC<AccountListProps> = ({
   const featuredIdentity =
     featuredAccount?.email ?? featuredAccount?.userId ?? "未识别身份";
   const featuredInsight = featuredAccount ? getAccountInsight(featuredAccount) : null;
+  const featuredInvalid = featuredAccount ? isAccountInvalid(featuredAccount) : false;
   const isSwitching = switchState.phase !== "idle";
   const isSwitchTarget =
     featuredAccount && switchState.toAccountId === featuredAccount.id && isSwitching;
-  const featuredStatus = featuredAccount?.isActive
-    ? "当前"
-    : isSwitchTarget
-      ? "切换中"
-      : "待命";
+  const featuredStatus = featuredInvalid
+    ? featuredAccount?.isActive
+      ? "当前已失效"
+      : "已失效"
+    : featuredAccount?.isActive
+      ? "当前"
+      : isSwitchTarget
+        ? "切换中"
+        : "待命";
 
   return (
     <section className="mx-auto w-full max-w-[1480px] space-y-4">
@@ -135,15 +142,24 @@ const AccountList: React.FC<AccountListProps> = ({
 
                   <div className="mt-8 flex items-center gap-3">
                     <button
-                      onClick={() => !featuredAccount.isActive && onSwitch(featuredAccount)}
-                      disabled={featuredAccount.isActive || isSwitching}
+                      onClick={() =>
+                        !featuredAccount.isActive &&
+                        !featuredInvalid &&
+                        !isSwitching &&
+                        onSwitch(featuredAccount)
+                      }
+                      disabled={featuredAccount.isActive || featuredInvalid || isSwitching}
                       className={`flex-1 rounded-full px-4 py-3 text-sm font-semibold transition-all disabled:cursor-not-allowed ${
-                        featuredAccount.isActive
+                        featuredInvalid
+                          ? "border border-rose-200 bg-rose-50 text-rose-600"
+                          : featuredAccount.isActive
                           ? "border border-white/12 bg-white/10 text-white"
                           : "bg-white text-slate-950 shadow-[0_18px_32px_-24px_rgba(255,255,255,0.78)] disabled:bg-white/60"
                       }`}
                     >
-                      {featuredAccount.isActive
+                      {featuredInvalid
+                        ? "账号失效"
+                        : featuredAccount.isActive
                         ? "当前使用中"
                         : isSwitchTarget
                           ? "切换中..."
@@ -209,7 +225,11 @@ const AccountList: React.FC<AccountListProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between px-1 pt-1 text-xs text-slate-400">
-                    <span>最近更新 {featuredInsight?.syncLabel ?? "--"}</span>
+                    <span>
+                      {featuredInvalid
+                        ? `已失效 · ${getAccountStatusReason(featuredAccount) ?? "请重新登录该账号"}`
+                        : `最近更新 ${featuredInsight?.syncLabel ?? "--"}`}
+                    </span>
                     <button
                       onClick={() => void onRefreshAccount(featuredAccount.id)}
                       disabled={refreshingAccountIds.includes(featuredAccount.id) || isRefreshing}

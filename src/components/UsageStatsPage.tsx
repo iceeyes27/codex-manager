@@ -3,9 +3,11 @@ import { motion, useReducedMotion } from "motion/react";
 import { useAccountStore } from "../store/accountStore";
 import {
   formatRelativeTime,
+  getAccountStatusReason,
   getBestQuotaAccount,
   getHourlyUsageEfficiency,
   getRecommendedAccountId,
+  isAccountInvalid,
 } from "../utils/dashboard";
 import { api } from "../utils/invoke";
 import type { Account, UsageStatsSummary } from "../types";
@@ -45,6 +47,9 @@ function efficiencyTone(status: ReturnType<typeof getHourlyUsageEfficiency>["sta
 }
 
 function describeAction(account: Account, recommendedId: string | null): string {
+  if (isAccountInvalid(account)) {
+    return "跳过";
+  }
   if (account.isActive && account.id === recommendedId) {
     return "继续";
   }
@@ -182,6 +187,7 @@ const UsageStatsPage: React.FC<UsageStatsPageProps> = ({
   const activeAccount = sortedAccounts.find((account) => account.isActive) ?? null;
   const bestAccount = getBestQuotaAccount(sortedAccounts);
   const recommendedId = getRecommendedAccountId(sortedAccounts);
+  const invalidAccountsCount = sortedAccounts.filter((account) => isAccountInvalid(account)).length;
   const efficiencyRows = sortedAccounts.map((account) => ({
     account,
     efficiency: getHourlyUsageEfficiency(account, now),
@@ -219,7 +225,7 @@ const UsageStatsPage: React.FC<UsageStatsPageProps> = ({
         </div>
         <div className="flex flex-wrap items-center gap-2.5">
           <span className="glass-pill rounded-full px-4 py-2.5 text-sm font-medium text-slate-600">
-            {bestAccount?.displayName ?? "暂无建议"}
+            {bestAccount?.displayName ?? (invalidAccountsCount > 0 ? "暂无可用账号" : "暂无建议")}
             {activeAccount ? ` · 当前 ${activeAccount.displayName}` : ""}
           </span>
           <button
@@ -251,10 +257,16 @@ const UsageStatsPage: React.FC<UsageStatsPageProps> = ({
                 </span>
                 <div className="mt-3 flex flex-wrap items-center gap-2.5">
                   <h3 className="truncate text-[2.1rem] font-black tracking-[-0.07em] text-white sm:text-[2.5rem]">
-                    {bestAccount?.displayName ?? "暂无建议"}
+                    {bestAccount?.displayName ?? (invalidAccountsCount > 0 ? "暂无可用账号" : "暂无建议")}
                   </h3>
                   <span className="rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[10px] font-semibold text-white/86">
-                    {bestAccount?.isActive ? "当前最优" : "建议切换"}
+                    {bestAccount
+                      ? bestAccount.isActive
+                        ? "当前最优"
+                        : "建议切换"
+                      : invalidAccountsCount > 0
+                        ? "需要处理"
+                        : "等待刷新"}
                   </span>
                 </div>
                 <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300">
@@ -262,7 +274,9 @@ const UsageStatsPage: React.FC<UsageStatsPageProps> = ({
                     ? bestAccount.isActive
                       ? "当前账号就是最稳的选择。"
                       : "下一轮高强度请求更适合交给它。"
-                    : "刷新后再看会更准确。"}
+                    : invalidAccountsCount > 0
+                      ? `已检测到 ${invalidAccountsCount} 个失效账号，请先在主窗口重新登录或替换。`
+                      : "刷新后再看会更准确。"}
                 </p>
               </div>
 
@@ -440,6 +454,11 @@ const UsageStatsPage: React.FC<UsageStatsPageProps> = ({
                           当前
                         </span>
                       )}
+                      {isAccountInvalid(account) && (
+                        <span className="rounded-full border border-rose-200 bg-rose-50 px-2.5 py-1 text-[10px] font-semibold text-rose-700">
+                          失效
+                        </span>
+                      )}
                       {account.id === recommendedId && !account.isActive && (
                         <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
                           推荐
@@ -496,7 +515,11 @@ const UsageStatsPage: React.FC<UsageStatsPageProps> = ({
                     >
                       5h 效率 {efficiency.label}
                     </span>
-                    <span className="text-xs text-slate-500">{efficiency.detail}</span>
+                    <span className="text-xs text-slate-500">
+                      {isAccountInvalid(account)
+                        ? getAccountStatusReason(account) ?? "账号已失效或不可用"
+                        : efficiency.detail}
+                    </span>
                   </div>
                   <div className="text-xs text-slate-500">
                     最近切换 {formatRelativeTime(account.lastSwitchedAt)}

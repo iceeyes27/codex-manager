@@ -139,13 +139,13 @@ fn load_accounts_store() -> Result<AccountsStore> {
         )
     })?;
 
-    serde_json::from_str(&content)
-        .with_context(|| format!("Failed to parse {}", path.display()))
+    serde_json::from_str(&content).with_context(|| format!("Failed to parse {}", path.display()))
 }
 
 fn write_accounts_store(store: &AccountsStore) -> Result<()> {
     let path = accounts_path()?;
-    let content = serde_json::to_string_pretty(store).context("Failed to serialize accounts.json")?;
+    let content =
+        serde_json::to_string_pretty(store).context("Failed to serialize accounts.json")?;
     write_text_atomic(&path, &format!("{content}\n"))
         .with_context(|| format!("Failed to write {}", path.display()))
 }
@@ -224,9 +224,12 @@ fn resolve_account(accounts: &[Account], query: &str) -> Result<Account> {
 
     if let Ok(index) = query.parse::<usize>() {
         let sorted = sort_accounts(accounts);
-        let account = sorted.get(index.saturating_sub(1)).cloned().with_context(|| {
-            format!("No account at index {index}. Run 'codex-manager list' first.")
-        })?;
+        let account = sorted
+            .get(index.saturating_sub(1))
+            .cloned()
+            .with_context(|| {
+                format!("No account at index {index}. Run 'codex-manager list' first.")
+            })?;
         return Ok(account);
     }
 
@@ -355,18 +358,11 @@ fn resolve_current_exe() -> Result<PathBuf> {
 
 #[cfg(target_os = "windows")]
 mod windows_path {
-    use std::{
-        ffi::OsStr,
-        iter,
-        os::windows::ffi::OsStrExt,
-        path::PathBuf,
-    };
+    use std::{ffi::OsStr, iter, os::windows::ffi::OsStrExt, path::PathBuf};
 
     use anyhow::{Context, Result};
-    use windows_sys::Win32::{
-        UI::WindowsAndMessaging::{
-            SendMessageTimeoutW, HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
-        },
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        SendMessageTimeoutW, HWND_BROADCAST, SMTO_ABORTIFHUNG, WM_SETTINGCHANGE,
     };
     use winreg::{
         enums::{HKEY_CURRENT_USER, KEY_READ, KEY_WRITE},

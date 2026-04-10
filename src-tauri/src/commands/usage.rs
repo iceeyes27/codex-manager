@@ -13,8 +13,8 @@ use crate::{
     atomic_io::write_text_atomic_async,
     commands::{accounts, paths::app_data_dir},
     models::{
-        AppSettings, AuthJson, CreditsSnapshot, GetAccountRateLimitsResponse, RateLimitSnapshot,
-        RateLimitWindow, TokenResponse,
+        AccountRateLimitStatus, AppSettings, AuthJson, CreditsSnapshot,
+        GetAccountRateLimitsResponse, RateLimitSnapshot, RateLimitWindow, TokenResponse,
     },
 };
 
@@ -72,6 +72,13 @@ struct CreditDetails {
 struct UsageFetchError {
     message: String,
     should_refresh_auth: bool,
+    invalid_account: bool,
+}
+
+#[derive(Debug)]
+struct RefreshAuthError {
+    message: String,
+    invalid_account: bool,
 }
 
 fn decode_jwt_payload(token: &str) -> Option<Value> {
@@ -217,6 +224,37 @@ fn truncate_for_error(body: &str, max_len: usize) -> String {
     }
 }
 
+fn looks_like_invalid_account_text(text: &str) -> bool {
+    let normalized = text.to_ascii_lowercase();
+    [
+        "invalid_grant",
+        "deactivated",
+        "disabled",
+        "suspended",
+        "banned",
+        "revoked",
+        "account_disabled",
+        "account disabled",
+        "account_not_found",
+        "account not found",
+        "user_not_found",
+        "token revoked",
+        "login expired",
+        "forbidden",
+        "unauthorized",
+        "封禁",
+        "失效",
+        "停用",
+        "禁用",
+    ]
+    .iter()
+    .any(|keyword| normalized.contains(keyword))
+}
+
+fn invalid_account_reason(detail: impl Into<String>) -> String {
+    format!("账号已失效或不可用，无法读取官方配额。{}", detail.into())
+}
+
 fn build_http_client(settings: &AppSettings) -> Result<reqwest::Client, String> {
     let mut builder = reqwest::Client::builder()
         .user_agent("codex-manager/0.1")
@@ -241,6 +279,7 @@ async fn request_usage_payload(
     let usage_urls = resolve_usage_urls();
     let mut errors: Vec<String> = Vec::new();
     let mut should_refresh_auth = false;
+    let mut invalid_account = false;
 
     for usage_url in usage_urls {
         let response = match client
@@ -265,6 +304,7 @@ async fn request_usage_payload(
 
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
+            invalid_account |= looks_like_invalid_account_text(&body);
             errors.push(format!(
                 "{usage_url} -> {status}: {}",
                 truncate_for_error(&body, 160)
@@ -291,11 +331,20 @@ async fn request_usage_payload(
     Err(UsageFetchError {
         message: format!("请求用量接口失败: {preview}"),
         should_refresh_auth,
+        invalid_account,
     })
 }
 
-async fn refresh_auth_tokens(client: &reqwest::Client, auth: &mut AuthJson) -> Result<(), String> {
-    let refresh_token = refresh_token(auth)?.to_string();
+async fn refresh_auth_tokens(
+    client: &reqwest::Client,
+    auth: &mut AuthJson,
+) -> Result<(), RefreshAuthError> {
+    let refresh_token = refresh_token(auth)
+        .map_err(|message| RefreshAuthError {
+            message,
+            invalid_account: true,
+        })?
+        .to_string();
     let token_url = auth
         .tokens
         .as_ref()
@@ -321,26 +370,35 @@ async fn refresh_auth_tokens(client: &reqwest::Client, auth: &mut AuthJson) -> R
         .form(&params)
         .send()
         .await
-        .map_err(|e| format!("刷新登录令牌失败 {token_endpoint}: {e}"))?;
+        .map_err(|e| RefreshAuthError {
+            message: format!("刷新登录令牌失败 {token_endpoint}: {e}"),
+            invalid_account: false,
+        })?;
 
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
-        return Err(format!(
-            "刷新登录令牌失败 {token_endpoint} -> {status}: {}",
-            truncate_for_error(&body, 160)
-        ));
+        return Err(RefreshAuthError {
+            message: format!(
+                "刷新登录令牌失败 {token_endpoint} -> {status}: {}",
+                truncate_for_error(&body, 160)
+            ),
+            invalid_account: matches!(
+                status,
+                StatusCode::BAD_REQUEST | StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN
+            ) || looks_like_invalid_account_text(&body),
+        });
     }
 
-    let refreshed: TokenResponse = response
-        .json()
-        .await
-        .map_err(|e| format!("解析刷新令牌响应失败: {e}"))?;
+    let refreshed: TokenResponse = response.json().await.map_err(|e| RefreshAuthError {
+        message: format!("解析刷新令牌响应失败: {e}"),
+        invalid_account: false,
+    })?;
 
-    let tokens = auth
-        .tokens
-        .as_mut()
-        .ok_or_else(|| "auth.json 缺少 tokens".to_string())?;
+    let tokens = auth.tokens.as_mut().ok_or_else(|| RefreshAuthError {
+        message: "auth.json 缺少 tokens".to_string(),
+        invalid_account: true,
+    })?;
 
     tokens.access_token = Some(refreshed.access_token);
     if let Some(id_token) = refreshed.id_token {
@@ -411,8 +469,19 @@ fn map_usage_payload(payload: UsageApiResponse) -> GetAccountRateLimitsResponse 
     by_limit_id.insert("codex".to_string(), snapshot.clone());
 
     GetAccountRateLimitsResponse {
-        rate_limits: snapshot,
+        rate_limits: Some(snapshot),
         rate_limits_by_limit_id: Some(by_limit_id),
+        account_status: Some(AccountRateLimitStatus::Available),
+        account_status_reason: None,
+    }
+}
+
+fn invalid_account_response(reason: String) -> GetAccountRateLimitsResponse {
+    GetAccountRateLimitsResponse {
+        rate_limits: None,
+        rate_limits_by_limit_id: None,
+        account_status: Some(AccountRateLimitStatus::Invalid),
+        account_status_reason: Some(reason),
     }
 }
 
@@ -431,31 +500,78 @@ pub async fn read_account_rate_limits(
     let settings = accounts::load_settings(app.clone()).await?;
     let client = build_http_client(&settings)?;
 
-    let mut resolved_account_id = extract_account_id(&auth)
-        .ok_or_else(|| "无法从 auth.json 识别 chatgpt_account_id".to_string())?;
+    let mut resolved_account_id = match extract_account_id(&auth) {
+        Some(id) => id,
+        None => {
+            return Ok(invalid_account_response(invalid_account_reason(
+                "凭证中缺少账号标识，请重新登录该账号。",
+            )));
+        }
+    };
 
-    match request_usage_payload(&client, access_token(&auth)?, &resolved_account_id).await {
+    let current_access_token = match access_token(&auth) {
+        Ok(token) => token.to_string(),
+        Err(message) => {
+            return Ok(invalid_account_response(invalid_account_reason(format!(
+                "{message}，请重新登录该账号。"
+            ))));
+        }
+    };
+
+    match request_usage_payload(&client, &current_access_token, &resolved_account_id).await {
         Ok(payload) => Ok(map_usage_payload(payload)),
         Err(err) if err.should_refresh_auth => {
-            refresh_auth_tokens(&client, &mut auth).await?;
-            resolved_account_id = extract_account_id(&auth)
-                .ok_or_else(|| "刷新后仍无法识别 chatgpt_account_id".to_string())?;
+            if let Err(refresh_err) = refresh_auth_tokens(&client, &mut auth).await {
+                if refresh_err.invalid_account {
+                    return Ok(invalid_account_response(invalid_account_reason(
+                        refresh_err.message,
+                    )));
+                }
+                return Err(refresh_err.message);
+            }
+
+            resolved_account_id = match extract_account_id(&auth) {
+                Some(id) => id,
+                None => {
+                    return Ok(invalid_account_response(invalid_account_reason(
+                        "刷新后仍无法识别账号标识，请重新登录该账号。",
+                    )));
+                }
+            };
             let serialized = serde_json::to_string_pretty(&auth)
                 .map_err(|e| format!("auth.json 序列化失败: {e}"))?;
             write_text_atomic_async(credentials_path.clone(), serialized)
                 .await
                 .map_err(|e| format!("更新账号凭证失败: {e}"))?;
-            let payload =
-                request_usage_payload(&client, access_token(&auth)?, &resolved_account_id)
-                    .await
-                    .map_err(|refresh_err| {
-                        format!(
-                            "{} | 刷新令牌后重试仍失败: {}",
-                            err.message, refresh_err.message
-                        )
-                    })?;
-            Ok(map_usage_payload(payload))
+            let refreshed_access_token = match access_token(&auth) {
+                Ok(token) => token.to_string(),
+                Err(message) => {
+                    return Ok(invalid_account_response(invalid_account_reason(format!(
+                        "{message}，请重新登录该账号。"
+                    ))));
+                }
+            };
+
+            match request_usage_payload(&client, &refreshed_access_token, &resolved_account_id)
+                .await
+            {
+                Ok(payload) => Ok(map_usage_payload(payload)),
+                Err(refresh_err)
+                    if refresh_err.should_refresh_auth || refresh_err.invalid_account =>
+                {
+                    Ok(invalid_account_response(invalid_account_reason(
+                        refresh_err.message,
+                    )))
+                }
+                Err(refresh_err) => Err(format!(
+                    "{} | 刷新令牌后重试仍失败: {}",
+                    err.message, refresh_err.message
+                )),
+            }
         }
+        Err(err) if err.invalid_account => Ok(invalid_account_response(invalid_account_reason(
+            err.message,
+        ))),
         Err(err) => Err(err.message),
     }
 }
