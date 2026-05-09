@@ -2,6 +2,7 @@ pub mod atomic_io;
 pub mod cli;
 pub mod commands;
 pub mod models;
+pub mod net;
 pub mod platform;
 
 use commands::{accounts, desktop, oauth, paths, sessions, usage};

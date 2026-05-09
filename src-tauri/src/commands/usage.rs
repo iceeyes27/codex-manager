@@ -13,9 +13,10 @@ use crate::{
     atomic_io::write_text_atomic_async,
     commands::{accounts, paths::app_data_dir},
     models::{
-        AccountRateLimitStatus, AppSettings, AuthJson, CreditsSnapshot,
-        GetAccountRateLimitsResponse, RateLimitSnapshot, RateLimitWindow, TokenResponse,
+        AccountRateLimitStatus, AuthJson, CreditsSnapshot, GetAccountRateLimitsResponse,
+        RateLimitSnapshot, RateLimitWindow, TokenResponse,
     },
+    net::build_http_client,
 };
 
 const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
@@ -255,22 +256,6 @@ fn invalid_account_reason(detail: impl Into<String>) -> String {
     format!("账号已失效或不可用，无法读取官方配额。{}", detail.into())
 }
 
-fn build_http_client(settings: &AppSettings) -> Result<reqwest::Client, String> {
-    let mut builder = reqwest::Client::builder()
-        .user_agent("codex-manager/0.1")
-        .timeout(std::time::Duration::from_secs(18));
-
-    if !settings.proxy_url.trim().is_empty() {
-        let proxy = reqwest::Proxy::all(settings.proxy_url.trim())
-            .map_err(|e| format!("Invalid proxy URL: {e}"))?;
-        builder = builder.proxy(proxy);
-    }
-
-    builder
-        .build()
-        .map_err(|e| format!("创建 HTTP 客户端失败: {e}"))
-}
-
 async fn request_usage_payload(
     client: &reqwest::Client,
     access_token: &str,
@@ -498,7 +483,11 @@ pub async fn read_account_rate_limits(
         serde_json::from_str(&auth_json).map_err(|e| format!("auth.json 解析失败: {e}"))?;
 
     let settings = accounts::load_settings(app.clone()).await?;
-    let client = build_http_client(&settings)?;
+    let client = build_http_client(
+        &settings,
+        "codex-manager/1.0",
+        std::time::Duration::from_secs(18),
+    )?;
 
     let mut resolved_account_id = match extract_account_id(&auth) {
         Some(id) => id,
