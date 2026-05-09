@@ -8,6 +8,7 @@ import {
   formatRelativeTime,
   getAccountStatusReason,
   getAccountInsight,
+  getRemainingPercent,
   getRecommendedAccountId,
   isAccountInvalid,
 } from "../utils/dashboard";
@@ -55,7 +56,7 @@ const AccountList: React.FC<AccountListProps> = ({
   const recommendedStandby = sorted.find(
     (account) => account.id === recommendedId && account.id !== featuredAccount?.id,
   );
-  const featuredQuota = featuredAccount?.rateLimits?.primary?.usedPercent;
+  const featuredQuota = getRemainingPercent(featuredAccount?.rateLimits?.primary);
   const featuredIdentity =
     featuredAccount?.email ?? featuredAccount?.userId ?? "未识别身份";
   const featuredInsight = featuredAccount ? getAccountInsight(featuredAccount) : null;
@@ -129,12 +130,15 @@ const AccountList: React.FC<AccountListProps> = ({
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)]">
                 <div className="rounded-[32px] border border-white/10 bg-white/[0.045] px-6 py-6">
                   <p className="text-[11px] font-semibold uppercase tracking-[0.26em] text-slate-400">
-                    5h 已用
+                    5h 剩余
                   </p>
                   <div className="mt-5 flex items-end gap-3">
                     <p className="text-[4.8rem] font-black tracking-[-0.14em] text-white">
                       {typeof featuredQuota === "number" ? `${Math.round(featuredQuota)}%` : "--"}
                     </p>
+                    <span className="pb-5 text-lg font-semibold text-slate-300">
+                      {featuredInsight?.hourlyQuota.resetLabel ?? ""}
+                    </span>
                   </div>
                   <p className="mt-3 text-sm text-slate-300">
                     {featuredInsight?.hourlyQuota.detail ?? "等待同步"}
@@ -268,10 +272,15 @@ const AccountList: React.FC<AccountListProps> = ({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
-                    5h 已用
+                    5h 剩余
                   </p>
                   <p className="mt-2 text-xl font-bold tracking-[-0.04em] text-slate-950">
                     {typeof featuredQuota === "number" ? `${Math.round(featuredQuota)}%` : "--"}
+                  </p>
+                  <p className="mt-1 text-xs font-medium text-slate-500">
+                    {featuredInsight?.hourlyQuota.resetLabel
+                      ? `重置 ${featuredInsight.hourlyQuota.resetLabel}`
+                      : "--"}
                   </p>
                 </div>
                 <div>

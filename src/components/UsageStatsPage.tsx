@@ -3,9 +3,11 @@ import { motion, useReducedMotion } from "motion/react";
 import { useAccountStore } from "../store/accountStore";
 import {
   formatRelativeTime,
+  getAccountInsight,
   getAccountStatusReason,
   getBestQuotaAccount,
   getHourlyUsageEfficiency,
+  getRemainingPercent,
   getRecommendedAccountId,
   isAccountInvalid,
 } from "../utils/dashboard";
@@ -174,12 +176,12 @@ const UsageStatsPage: React.FC<UsageStatsPageProps> = ({
 
   const now = Date.now();
   const sortedAccounts = [...accounts].sort((left, right) => {
-    const leftPrimary = left.rateLimits?.primary?.usedPercent ?? Number.POSITIVE_INFINITY;
-    const rightPrimary = right.rateLimits?.primary?.usedPercent ?? Number.POSITIVE_INFINITY;
+    const leftPrimary = getRemainingPercent(left.rateLimits?.primary) ?? Number.NEGATIVE_INFINITY;
+    const rightPrimary = getRemainingPercent(right.rateLimits?.primary) ?? Number.NEGATIVE_INFINITY;
     if (left.isActive) return -1;
     if (right.isActive) return 1;
     if (leftPrimary !== rightPrimary) {
-      return leftPrimary - rightPrimary;
+      return rightPrimary - leftPrimary;
     }
     return left.displayName.localeCompare(right.displayName, "zh-CN");
   });
@@ -205,11 +207,12 @@ const UsageStatsPage: React.FC<UsageStatsPageProps> = ({
   const mostUnderused = [...efficiencyRows]
     .filter((row) => typeof row.efficiency.score === "number")
     .sort((left, right) => (left.efficiency.score ?? 0) - (right.efficiency.score ?? 0))[0];
-  const hottestAccount = [...sortedAccounts].sort((left, right) => {
-    const leftUsage = left.rateLimits?.primary?.usedPercent ?? -1;
-    const rightUsage = right.rateLimits?.primary?.usedPercent ?? -1;
-    return rightUsage - leftUsage;
+  const mostAvailableAccount = [...sortedAccounts].sort((left, right) => {
+    const leftRemaining = getRemainingPercent(left.rateLimits?.primary) ?? -1;
+    const rightRemaining = getRemainingPercent(right.rateLimits?.primary) ?? -1;
+    return rightRemaining - leftRemaining;
   })[0];
+  const mostAvailableInsight = mostAvailableAccount ? getAccountInsight(mostAvailableAccount) : null;
 
   return (
     <section className="mx-auto w-full max-w-[1480px] space-y-4">
@@ -310,13 +313,16 @@ const UsageStatsPage: React.FC<UsageStatsPageProps> = ({
                 <div className="mt-8 grid gap-3 sm:grid-cols-3">
                   <div className="rounded-[22px] border border-white/10 bg-white/[0.06] px-4 py-4">
                     <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                      当前最热
+                      剩余最多
                     </p>
                     <p className="mt-2 text-base font-bold tracking-[-0.03em] text-white">
-                      {hottestAccount?.displayName ?? "暂无数据"}
+                      {mostAvailableAccount?.displayName ?? "暂无数据"}
                     </p>
                     <p className="mt-1 text-xs text-slate-400">
-                      5h 已用 {formatPercent(hottestAccount?.rateLimits?.primary?.usedPercent)}
+                      5h 剩余 {formatPercent(getRemainingPercent(mostAvailableAccount?.rateLimits?.primary))}
+                      {mostAvailableInsight?.hourlyQuota.resetLabel
+                        ? ` · ${mostAvailableInsight.hourlyQuota.resetLabel}`
+                        : ""}
                     </p>
                   </div>
                   <div className="rounded-[22px] border border-white/10 bg-white/[0.06] px-4 py-4">
@@ -489,10 +495,13 @@ const UsageStatsPage: React.FC<UsageStatsPageProps> = ({
                     </div>
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
-                        5h 已用
+                        5h 剩余
                       </p>
                       <p className="mt-1 text-sm font-semibold text-slate-900">
-                        {formatPercent(account.rateLimits?.primary?.usedPercent)}
+                        {formatPercent(getRemainingPercent(account.rateLimits?.primary))}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {getAccountInsight(account).hourlyQuota.resetLabel ?? "--"}
                       </p>
                     </div>
                     <div>

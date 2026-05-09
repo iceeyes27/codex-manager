@@ -129,7 +129,7 @@ export interface CreditsSnapshot {
 }
 
 export interface RateLimitWindow {
-  usedPercent: number;
+  remainingPercent: number;
   resetsAt?: number | null;
   windowDurationMins?: number | null;
 }

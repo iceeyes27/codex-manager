@@ -1,5 +1,8 @@
 use crate::models::AppSettings;
 
+#[cfg(any(target_os = "macos", test))]
+use std::collections::HashMap;
+
 fn env_proxy_url() -> Option<String> {
     [
         "HTTPS_PROXY",
@@ -83,13 +86,83 @@ fn windows_system_proxy_url() -> Option<String> {
     None
 }
 
+#[cfg(any(target_os = "macos", test))]
+fn parse_scutil_proxy_output(output: &str) -> Option<String> {
+    let mut values = HashMap::new();
+
+    for line in output.lines() {
+        let Some((raw_key, raw_value)) = line.split_once(':') else {
+            continue;
+        };
+        let key = raw_key.trim();
+        let value = raw_value.trim().trim_matches('"').trim_matches('\'');
+        if !key.is_empty() && !value.is_empty() {
+            values.insert(key.to_string(), value.to_string());
+        }
+    }
+
+    fn enabled(values: &HashMap<String, String>, key: &str) -> bool {
+        matches!(
+            values.get(key).map(|value| value.as_str()),
+            Some("1") | Some("true") | Some("TRUE")
+        )
+    }
+
+    fn proxy_url(
+        values: &HashMap<String, String>,
+        enable_key: &str,
+        host_key: &str,
+        port_key: &str,
+        scheme: &str,
+    ) -> Option<String> {
+        if !enabled(values, enable_key) {
+            return None;
+        }
+        let host = values.get(host_key)?.trim();
+        let port = values.get(port_key)?.trim();
+        if host.is_empty() || port.is_empty() {
+            return None;
+        }
+        let normalized_host = if host.contains(':') && !host.starts_with('[') {
+            format!("[{host}]")
+        } else {
+            host.to_string()
+        };
+        Some(format!("{scheme}://{normalized_host}:{port}"))
+    }
+
+    proxy_url(&values, "HTTPSEnable", "HTTPSProxy", "HTTPSPort", "http")
+        .or_else(|| proxy_url(&values, "HTTPEnable", "HTTPProxy", "HTTPPort", "http"))
+        .or_else(|| proxy_url(&values, "SOCKSEnable", "SOCKSProxy", "SOCKSPort", "socks5"))
+}
+
+#[cfg(target_os = "macos")]
+fn macos_system_proxy_url() -> Option<String> {
+    let output = std::process::Command::new("/usr/sbin/scutil")
+        .arg("--proxy")
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let stdout = std::str::from_utf8(&output.stdout).ok()?;
+    parse_scutil_proxy_output(stdout)
+}
+
+#[cfg(not(target_os = "macos"))]
+fn macos_system_proxy_url() -> Option<String> {
+    None
+}
+
 fn configured_proxy_url(settings: &AppSettings) -> Option<String> {
     let explicit = settings.proxy_url.trim();
     if !explicit.is_empty() {
         return Some(explicit.to_string());
     }
 
-    env_proxy_url().or_else(windows_system_proxy_url)
+    env_proxy_url()
+        .or_else(macos_system_proxy_url)
+        .or_else(windows_system_proxy_url)
 }
 
 pub fn build_http_client(
@@ -114,7 +187,7 @@ pub fn build_http_client(
 
 #[cfg(test)]
 mod tests {
-    use super::parse_proxy_server_entry;
+    use super::{parse_proxy_server_entry, parse_scutil_proxy_output};
 
     #[test]
     fn parses_single_proxy_server() {
@@ -136,6 +209,60 @@ mod tests {
     fn parses_socks_proxy_server_entry() {
         assert_eq!(
             parse_proxy_server_entry("socks=127.0.0.1:1080").as_deref(),
+            Some("socks5://127.0.0.1:1080")
+        );
+    }
+
+    #[test]
+    fn parses_macos_https_system_proxy() {
+        let output = r#"
+<dictionary> {
+  HTTPEnable : 1
+  HTTPPort : 7890
+  HTTPProxy : 127.0.0.1
+  HTTPSEnable : 1
+  HTTPSPort : 7891
+  HTTPSProxy : 127.0.0.1
+}
+"#;
+
+        assert_eq!(
+            parse_scutil_proxy_output(output).as_deref(),
+            Some("http://127.0.0.1:7891")
+        );
+    }
+
+    #[test]
+    fn parses_macos_http_system_proxy() {
+        let output = r#"
+<dictionary> {
+  HTTPEnable : 1
+  HTTPPort : 7890
+  HTTPProxy : 127.0.0.1
+  HTTPSEnable : 0
+}
+"#;
+
+        assert_eq!(
+            parse_scutil_proxy_output(output).as_deref(),
+            Some("http://127.0.0.1:7890")
+        );
+    }
+
+    #[test]
+    fn parses_macos_socks_system_proxy() {
+        let output = r#"
+<dictionary> {
+  HTTPEnable : 0
+  HTTPSEnable : 0
+  SOCKSEnable : 1
+  SOCKSPort : 1080
+  SOCKSProxy : 127.0.0.1
+}
+"#;
+
+        assert_eq!(
+            parse_scutil_proxy_output(output).as_deref(),
             Some("socks5://127.0.0.1:1080")
         );
     }

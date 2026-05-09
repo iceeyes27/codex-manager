@@ -1,12 +1,13 @@
 import { format, formatDistanceToNowStrict, isToday, isYesterday } from "date-fns";
 import { zhCN } from "date-fns/locale";
-import { Account } from "../types";
+import type { Account, RateLimitWindow } from "../types";
 
 export interface QuotaMetric {
   label: string;
   percent: number | null;
   detail: string;
   valueLabel: string;
+  resetLabel: string | null;
   tone: "critical" | "warning" | "healthy";
   available: boolean;
 }
@@ -30,6 +31,7 @@ export interface AccountInsight {
 
 export interface UsageEfficiency {
   score: number | null;
+  remainingPercent: number | null;
   usedPercent: number | null;
   elapsedPercent: number | null;
   status: "unavailable" | "underused" | "balanced" | "aggressive";
@@ -39,8 +41,8 @@ export interface UsageEfficiency {
 
 interface RankedQuotaAccount {
   account: Account;
-  primaryUsed: number;
-  secondaryUsed: number;
+  primaryRemaining: number;
+  secondaryRemaining: number;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -48,9 +50,21 @@ function clamp(value: number, min: number, max: number): number {
 }
 
 function metricTone(percent: number): QuotaMetric["tone"] {
-  if (percent >= 85) return "critical";
-  if (percent >= 55) return "warning";
+  if (percent <= 15) return "critical";
+  if (percent <= 45) return "warning";
   return "healthy";
+}
+
+export function getRemainingPercent(
+  window: RateLimitWindow | null | undefined,
+): number | null {
+  if (!window) {
+    return null;
+  }
+  if (typeof window.remainingPercent === "number") {
+    return clamp(window.remainingPercent, 0, 100);
+  }
+  return null;
 }
 
 function formatResetTimestamp(timestampSeconds: number | null | undefined): string {
@@ -60,6 +74,20 @@ function formatResetTimestamp(timestampSeconds: number | null | undefined): stri
 
   try {
     return format(new Date(timestampSeconds * 1000), "yyyy-MM-dd HH:mm");
+  } catch {
+    return "时间待定";
+  }
+}
+
+function formatResetShort(timestampSeconds: number | null | undefined, mode: "time" | "date"): string {
+  if (!timestampSeconds) {
+    return "时间待定";
+  }
+
+  try {
+    return format(new Date(timestampSeconds * 1000), mode === "time" ? "HH:mm" : "M月d日", {
+      locale: zhCN,
+    });
   } catch {
     return "时间待定";
   }
@@ -124,6 +152,7 @@ function createUnavailableMetric(account: Account, label: string, suffix: string
       percent: null,
       detail: getAccountStatusReason(account) ?? "账号已失效或不可用",
       valueLabel: `失效 / ${suffix}`,
+      resetLabel: null,
       tone: "critical",
       available: false,
     };
@@ -134,41 +163,48 @@ function createUnavailableMetric(account: Account, label: string, suffix: string
     percent: null,
     detail: "官方数据未获取",
     valueLabel: `未获取 / ${suffix}`,
+    resetLabel: null,
     tone: "warning",
     available: false,
   };
 }
 
 function deriveHourlyQuota(account: Account): QuotaMetric {
-  if (account.rateLimits?.primary) {
-    const percent = clamp(account.rateLimits.primary.usedPercent, 0, 100);
+  const primary = account.rateLimits?.primary;
+  const percent = getRemainingPercent(primary);
+  if (percent !== null) {
+    const resetLabel = formatResetShort(primary?.resetsAt, "time");
     return {
-      label: "5小时已使用配额",
+      label: "5小时剩余额度",
       percent,
-      detail: `刷新时间 ${formatResetTimestamp(account.rateLimits.primary.resetsAt)}`,
-      valueLabel: `${percent}% / 5h`,
+      detail: `重置时间 ${formatResetTimestamp(primary?.resetsAt)}`,
+      valueLabel: `${percent}% · ${resetLabel}`,
+      resetLabel,
       tone: metricTone(percent),
       available: true,
     };
   }
 
-  return createUnavailableMetric(account, "5小时已使用配额", "5h");
+  return createUnavailableMetric(account, "5小时剩余额度", "5h");
 }
 
 function deriveWeeklyQuota(account: Account): QuotaMetric {
-  if (account.rateLimits?.secondary) {
-    const percent = clamp(account.rateLimits.secondary.usedPercent, 0, 100);
+  const secondary = account.rateLimits?.secondary;
+  const percent = getRemainingPercent(secondary);
+  if (percent !== null) {
+    const resetLabel = formatResetShort(secondary?.resetsAt, "date");
     return {
-      label: "每周已使用配额",
+      label: "每周剩余额度",
       percent,
-      detail: `刷新时间 ${formatResetTimestamp(account.rateLimits.secondary.resetsAt)}`,
-      valueLabel: `${percent}% / week`,
+      detail: `重置时间 ${formatResetTimestamp(secondary?.resetsAt)}`,
+      valueLabel: `${percent}% · ${resetLabel}`,
+      resetLabel,
       tone: metricTone(percent),
       available: true,
     };
   }
 
-  return createUnavailableMetric(account, "每周已使用配额", "week");
+  return createUnavailableMetric(account, "每周剩余额度", "week");
 }
 
 export function getHourlyUsageEfficiency(
@@ -176,16 +212,18 @@ export function getHourlyUsageEfficiency(
   now = Date.now(),
 ): UsageEfficiency {
   const primary = account.rateLimits?.primary;
+  const remainingPercent = getRemainingPercent(primary);
   if (
     !primary ||
-    typeof primary.usedPercent !== "number" ||
+    remainingPercent === null ||
     typeof primary.resetsAt !== "number" ||
     typeof primary.windowDurationMins !== "number" ||
     primary.windowDurationMins <= 0
   ) {
     return {
       score: null,
-      usedPercent: typeof primary?.usedPercent === "number" ? clamp(primary.usedPercent, 0, 100) : null,
+      remainingPercent,
+      usedPercent: remainingPercent === null ? null : 100 - remainingPercent,
       elapsedPercent: null,
       status: "unavailable",
       label: "待接入",
@@ -193,7 +231,7 @@ export function getHourlyUsageEfficiency(
     };
   }
 
-  const usedPercent = clamp(primary.usedPercent, 0, 100);
+  const usedPercent = 100 - remainingPercent;
   const windowMs = primary.windowDurationMins * 60 * 1000;
   const resetAtMs = primary.resetsAt * 1000;
   const remainingMs = clamp(resetAtMs - now, 0, windowMs);
@@ -202,6 +240,7 @@ export function getHourlyUsageEfficiency(
   if (elapsedPercent <= 0.5) {
     return {
       score: null,
+      remainingPercent,
       usedPercent,
       elapsedPercent,
       status: "unavailable",
@@ -216,32 +255,35 @@ export function getHourlyUsageEfficiency(
   if (paceRatio < 0.75) {
     return {
       score,
+      remainingPercent,
       usedPercent,
       elapsedPercent,
       status: "underused",
       label: `${Math.round(score)}%`,
-      detail: "当前用量低于时间进度，节奏偏慢",
+      detail: "剩余额度消耗低于时间进度，节奏偏慢",
     };
   }
 
   if (paceRatio <= 1.25) {
     return {
       score,
+      remainingPercent,
       usedPercent,
       elapsedPercent,
       status: "balanced",
       label: `${Math.round(score)}%`,
-      detail: "当前用量与时间进度基本同步",
+      detail: "剩余额度消耗与时间进度基本同步",
     };
   }
 
   return {
     score,
+    remainingPercent,
     usedPercent,
     elapsedPercent,
     status: "aggressive",
     label: `${Math.round(score)}%`,
-    detail: "当前用量高于时间进度，账号压力偏高",
+    detail: "剩余额度消耗高于时间进度，账号压力偏高",
   };
 }
 
@@ -267,26 +309,22 @@ function getRankedQuotaAccounts(accounts: Account[]): RankedQuotaAccount[] {
     .filter(
       (account) =>
         !isAccountInvalid(account) &&
-        (typeof account.rateLimits?.primary?.usedPercent === "number" ||
-          typeof account.rateLimits?.secondary?.usedPercent === "number"),
+        (getRemainingPercent(account.rateLimits?.primary) !== null ||
+          getRemainingPercent(account.rateLimits?.secondary) !== null),
     )
     .map((account) => ({
       account,
-      primaryUsed:
-        typeof account.rateLimits?.primary?.usedPercent === "number"
-          ? clamp(account.rateLimits.primary.usedPercent, 0, 100)
-          : Number.POSITIVE_INFINITY,
-      secondaryUsed:
-        typeof account.rateLimits?.secondary?.usedPercent === "number"
-          ? clamp(account.rateLimits.secondary.usedPercent, 0, 100)
-          : Number.POSITIVE_INFINITY,
+      primaryRemaining:
+        getRemainingPercent(account.rateLimits?.primary) ?? Number.NEGATIVE_INFINITY,
+      secondaryRemaining:
+        getRemainingPercent(account.rateLimits?.secondary) ?? Number.NEGATIVE_INFINITY,
     }))
     .sort((left, right) => {
-      if (left.primaryUsed !== right.primaryUsed) {
-        return left.primaryUsed - right.primaryUsed;
+      if (left.primaryRemaining !== right.primaryRemaining) {
+        return right.primaryRemaining - left.primaryRemaining;
       }
-      if (left.secondaryUsed !== right.secondaryUsed) {
-        return left.secondaryUsed - right.secondaryUsed;
+      if (left.secondaryRemaining !== right.secondaryRemaining) {
+        return right.secondaryRemaining - left.secondaryRemaining;
       }
       return left.account.createdAt.localeCompare(right.account.createdAt);
     });

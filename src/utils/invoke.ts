@@ -43,8 +43,8 @@ const demoAccounts: AccountsStore = {
       rateLimits: {
         limitId: "codex",
         planType: "plus",
-        primary: { usedPercent: 100, windowDurationMins: 300, resetsAt: 1773813607 },
-        secondary: { usedPercent: 88, windowDurationMins: 10080, resetsAt: 1773878873 },
+        primary: { remainingPercent: 100, windowDurationMins: 300, resetsAt: 1773813607 },
+        secondary: { remainingPercent: 88, windowDurationMins: 10080, resetsAt: 1773878873 },
       },
     },
     {
@@ -66,8 +66,8 @@ const demoAccounts: AccountsStore = {
       rateLimits: {
         limitId: "codex",
         planType: "plus",
-        primary: { usedPercent: 19, windowDurationMins: 300, resetsAt: 1773806407 },
-        secondary: { usedPercent: 29, windowDurationMins: 10080, resetsAt: 1774144400 },
+        primary: { remainingPercent: 19, windowDurationMins: 300, resetsAt: 1773806407 },
+        secondary: { remainingPercent: 29, windowDurationMins: 10080, resetsAt: 1774144400 },
       },
     },
     {
@@ -89,8 +89,8 @@ const demoAccounts: AccountsStore = {
       rateLimits: {
         limitId: "codex",
         planType: "plus",
-        primary: { usedPercent: 98, windowDurationMins: 300, resetsAt: 1773801007 },
-        secondary: { usedPercent: 96, windowDurationMins: 10080, resetsAt: 1773965273 },
+        primary: { remainingPercent: 98, windowDurationMins: 300, resetsAt: 1773801007 },
+        secondary: { remainingPercent: 96, windowDurationMins: 10080, resetsAt: 1773965273 },
       },
     },
   ],

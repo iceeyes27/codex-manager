@@ -294,7 +294,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
 
             <div className="mt-10">
               <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-                5h 已用
+                5h 剩余
               </p>
               <div className="mt-3 flex items-end gap-3">
                 <p className="text-[4rem] font-black tracking-[-0.11em] text-white">

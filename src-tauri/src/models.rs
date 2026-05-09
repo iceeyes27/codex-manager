@@ -116,7 +116,7 @@ pub struct CreditsSnapshot {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RateLimitWindow {
-    pub used_percent: i32,
+    pub remaining_percent: i32,
     pub resets_at: Option<i64>,
     pub window_duration_mins: Option<i64>,
 }

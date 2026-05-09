@@ -36,18 +36,20 @@ describe("getAccountInsight", () => {
     const account = createAccount({
       rateLimits: {
         planType: "pro",
-        primary: { usedPercent: 92, resetsAt: 1_800_000_000 },
-        secondary: { usedPercent: 44, resetsAt: 1_800_100_000 },
+        primary: { remainingPercent: 92, resetsAt: 1_800_000_000 },
+        secondary: { remainingPercent: 44, resetsAt: 1_800_100_000 },
       },
     });
 
     const insight = getAccountInsight(account);
 
     expect(insight.roleLabel).toBe("Pro");
-    expect(insight.hourlyQuota.valueLabel).toBe("92% / 5h");
-    expect(insight.hourlyQuota.tone).toBe("critical");
-    expect(insight.weeklyQuota.valueLabel).toBe("44% / week");
-    expect(insight.weeklyQuota.tone).toBe("healthy");
+    expect(insight.hourlyQuota.valueLabel).toMatch(/^92% · /);
+    expect(insight.hourlyQuota.detail).toContain("重置时间");
+    expect(insight.hourlyQuota.tone).toBe("healthy");
+    expect(insight.weeklyQuota.valueLabel).toMatch(/^44% · /);
+    expect(insight.weeklyQuota.detail).toContain("重置时间");
+    expect(insight.weeklyQuota.tone).toBe("warning");
     expect(insight.syncLabel).toBe("2026-03-11 10:00");
     expect(insight.hasRealRateLimits).toBe(true);
   });
@@ -75,8 +77,8 @@ describe("quota ranking", () => {
       isActive: true,
       rateLimits: {
         planType: "plus",
-        primary: { usedPercent: 70 },
-        secondary: { usedPercent: 30 },
+        primary: { remainingPercent: 70 },
+        secondary: { remainingPercent: 30 },
       },
     });
     const candidate = createAccount({
@@ -85,8 +87,8 @@ describe("quota ranking", () => {
       isActive: false,
       rateLimits: {
         planType: "plus",
-        primary: { usedPercent: 15 },
-        secondary: { usedPercent: 25 },
+        primary: { remainingPercent: 15 },
+        secondary: { remainingPercent: 25 },
       },
     });
     const exhausted = createAccount({
@@ -94,13 +96,13 @@ describe("quota ranking", () => {
       displayName: "Exhausted",
       rateLimits: {
         planType: "plus",
-        primary: { usedPercent: 99 },
-        secondary: { usedPercent: 99 },
+        primary: { remainingPercent: 99 },
+        secondary: { remainingPercent: 99 },
       },
     });
 
-    expect(getRecommendedAccountId([active, exhausted, candidate])).toBe("candidate");
-    expect(getBestQuotaAccount([active, exhausted, candidate])?.id).toBe("candidate");
+    expect(getRecommendedAccountId([active, exhausted, candidate])).toBe("exhausted");
+    expect(getBestQuotaAccount([active, exhausted, candidate])?.id).toBe("exhausted");
   });
 
   it("returns null when there is no usable quota data", () => {
@@ -117,7 +119,7 @@ describe("getHourlyUsageEfficiency", () => {
       rateLimits: {
         planType: "plus",
         primary: {
-          usedPercent: 48,
+          remainingPercent: 52,
           resetsAt: Math.floor(new Date("2026-03-11T12:30:00Z").getTime() / 1000),
           windowDurationMins: 300,
         },
@@ -137,7 +139,7 @@ describe("getHourlyUsageEfficiency", () => {
       rateLimits: {
         planType: "plus",
         primary: {
-          usedPercent: 20,
+          remainingPercent: 80,
           resetsAt: Math.floor(new Date("2026-03-11T11:00:00Z").getTime() / 1000),
           windowDurationMins: 300,
         },
@@ -155,7 +157,7 @@ describe("getHourlyUsageEfficiency", () => {
       createAccount({
         rateLimits: {
           planType: "plus",
-          primary: { usedPercent: 20 },
+          primary: { remainingPercent: 80 },
         },
       }),
     );

@@ -405,8 +405,10 @@ fn pick_nearest_window(windows: &[UsageWindowRaw], target_seconds: i64) -> Optio
 }
 
 fn to_usage_window(window: UsageWindowRaw) -> RateLimitWindow {
+    let remaining_percent = (100.0 - window.used_percent).clamp(0.0, 100.0).round() as i32;
+
     RateLimitWindow {
-        used_percent: window.used_percent.round() as i32,
+        remaining_percent,
         resets_at: Some(window.reset_at),
         window_duration_mins: Some(window.limit_window_seconds / 60),
     }
