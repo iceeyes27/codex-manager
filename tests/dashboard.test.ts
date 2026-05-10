@@ -20,7 +20,7 @@ function createAccount(overrides: Partial<Account> = {}): Account {
     sessionInfo: {
       fileCount: 12,
       totalBytes: 1_024,
-      lastSessionObservedAt: "2026-03-11T10:00:00",
+      lastSessionObservedAt: "2026-03-11T10:00:00Z",
       currentSessionId: null,
       currentThreadName: null,
       currentUpdatedAt: null,
@@ -36,21 +36,27 @@ describe("getAccountInsight", () => {
     const account = createAccount({
       rateLimits: {
         planType: "pro",
-        primary: { remainingPercent: 92, resetsAt: 1_800_000_000 },
-        secondary: { remainingPercent: 44, resetsAt: 1_800_100_000 },
+        primary: {
+          remainingPercent: 92,
+          resetsAt: Date.UTC(2026, 4, 9, 18, 43) / 1000,
+        },
+        secondary: {
+          remainingPercent: 44,
+          resetsAt: Date.UTC(2026, 4, 15, 16, 30) / 1000,
+        },
       },
     });
 
     const insight = getAccountInsight(account);
 
     expect(insight.roleLabel).toBe("Pro");
-    expect(insight.hourlyQuota.valueLabel).toMatch(/^92% · /);
-    expect(insight.hourlyQuota.detail).toContain("重置时间");
+    expect(insight.hourlyQuota.valueLabel).toBe("92% · 02:43");
+    expect(insight.hourlyQuota.detail).toBe("重置时间 2026-05-10 02:43");
     expect(insight.hourlyQuota.tone).toBe("healthy");
-    expect(insight.weeklyQuota.valueLabel).toMatch(/^44% · /);
-    expect(insight.weeklyQuota.detail).toContain("重置时间");
+    expect(insight.weeklyQuota.valueLabel).toBe("44% · 5月16日");
+    expect(insight.weeklyQuota.detail).toBe("重置时间 2026-05-16 00:30");
     expect(insight.weeklyQuota.tone).toBe("warning");
-    expect(insight.syncLabel).toBe("2026-03-11 10:00");
+    expect(insight.syncLabel).toBe("2026-03-11 18:00");
     expect(insight.hasRealRateLimits).toBe(true);
   });
 

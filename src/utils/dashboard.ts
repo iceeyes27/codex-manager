@@ -1,6 +1,9 @@
-import { format, formatDistanceToNowStrict, isToday, isYesterday } from "date-fns";
+import { formatDistanceToNowStrict } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import type { Account, RateLimitWindow } from "../types";
+
+const RESET_TIME_ZONE = "Asia/Shanghai";
+export const DISPLAY_TIME_ZONE_LABEL = "UTC+8";
 
 export interface QuotaMetric {
   label: string;
@@ -67,30 +70,71 @@ export function getRemainingPercent(
   return null;
 }
 
-function formatResetTimestamp(timestampSeconds: number | null | undefined): string {
-  if (!timestampSeconds) {
-    return "时间待定";
-  }
+type ZonedParts = {
+  year: string;
+  month: string;
+  day: string;
+  hour: string;
+  minute: string;
+};
 
+function getZonedParts(date: Date): ZonedParts | null {
   try {
-    return format(new Date(timestampSeconds * 1000), "yyyy-MM-dd HH:mm");
+    const parts = new Intl.DateTimeFormat("zh-CN", {
+      timeZone: RESET_TIME_ZONE,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    }).formatToParts(date);
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((item) => item.type === type)?.value;
+    const year = part("year");
+    const month = part("month");
+    const day = part("day");
+    const hour = part("hour");
+    const minute = part("minute");
+
+    if (!year || !month || !day || !hour || !minute) {
+      return null;
+    }
+
+    return { year, month, day, hour, minute };
   } catch {
-    return "时间待定";
+    return null;
   }
 }
 
-function formatResetShort(timestampSeconds: number | null | undefined, mode: "time" | "date"): string {
-  if (!timestampSeconds) {
+function formatZonedDateKey(parts: Pick<ZonedParts, "year" | "month" | "day">): string {
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function formatResetTimestamp(timestampSeconds: number | null | undefined): string {
+  if (typeof timestampSeconds !== "number" || !Number.isFinite(timestampSeconds)) {
     return "时间待定";
   }
 
-  try {
-    return format(new Date(timestampSeconds * 1000), mode === "time" ? "HH:mm" : "M月d日", {
-      locale: zhCN,
-    });
-  } catch {
+  const parts = getZonedParts(new Date(timestampSeconds * 1000));
+  return parts ? `${formatZonedDateKey(parts)} ${parts.hour}:${parts.minute}` : "时间待定";
+}
+
+function formatResetShort(timestampSeconds: number | null | undefined, mode: "time" | "date"): string {
+  if (typeof timestampSeconds !== "number" || !Number.isFinite(timestampSeconds)) {
     return "时间待定";
   }
+
+  const parts = getZonedParts(new Date(timestampSeconds * 1000));
+  if (!parts) {
+    return "时间待定";
+  }
+
+  if (mode === "time") {
+    return `${parts.hour}:${parts.minute}`;
+  }
+
+  return `${Number(parts.month)}月${Number(parts.day)}日`;
 }
 
 function formatSyncTime(iso: string | null): string {
@@ -100,13 +144,31 @@ function formatSyncTime(iso: string | null): string {
 
   try {
     const date = new Date(iso);
-    if (isToday(date)) {
-      return `今天 ${format(date, "HH:mm")}`;
+    const parts = getZonedParts(date);
+    const nowParts = getZonedParts(new Date());
+    if (!parts || !nowParts) {
+      return "时间未知";
     }
-    if (isYesterday(date)) {
-      return `昨天 ${format(date, "HH:mm")}`;
+
+    const dateKey = formatZonedDateKey(parts);
+    const todayKey = formatZonedDateKey(nowParts);
+    const yesterdayDate = new Date(
+      Date.UTC(Number(nowParts.year), Number(nowParts.month) - 1, Number(nowParts.day)) -
+        24 * 60 * 60 * 1000,
+    );
+    const yesterdayKey = formatZonedDateKey({
+      year: String(yesterdayDate.getUTCFullYear()),
+      month: String(yesterdayDate.getUTCMonth() + 1).padStart(2, "0"),
+      day: String(yesterdayDate.getUTCDate()).padStart(2, "0"),
+    });
+
+    if (dateKey === todayKey) {
+      return `今天 ${parts.hour}:${parts.minute}`;
     }
-    return format(date, "yyyy-MM-dd HH:mm");
+    if (dateKey === yesterdayKey) {
+      return `昨天 ${parts.hour}:${parts.minute}`;
+    }
+    return `${dateKey} ${parts.hour}:${parts.minute}`;
   } catch {
     return "时间未知";
   }

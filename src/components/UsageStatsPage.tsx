@@ -321,7 +321,7 @@ const UsageStatsPage: React.FC<UsageStatsPageProps> = ({
                     <p className="mt-1 text-xs text-slate-400">
                       5h 剩余 {formatPercent(getRemainingPercent(mostAvailableAccount?.rateLimits?.primary))}
                       {mostAvailableInsight?.hourlyQuota.resetLabel
-                        ? ` · ${mostAvailableInsight.hourlyQuota.resetLabel}`
+                        ? ` · 重置 ${mostAvailableInsight.hourlyQuota.resetLabel}`
                         : ""}
                     </p>
                   </div>
@@ -501,7 +501,9 @@ const UsageStatsPage: React.FC<UsageStatsPageProps> = ({
                         {formatPercent(getRemainingPercent(account.rateLimits?.primary))}
                       </p>
                       <p className="mt-0.5 text-xs text-slate-500">
-                        {getAccountInsight(account).hourlyQuota.resetLabel ?? "--"}
+                        {getAccountInsight(account).hourlyQuota.resetLabel
+                          ? `重置 ${getAccountInsight(account).hourlyQuota.resetLabel}`
+                          : "--"}
                       </p>
                     </div>
                     <div>

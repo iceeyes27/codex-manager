@@ -72,6 +72,19 @@ const AccountCard: React.FC<AccountCardProps> = ({
         ? "切换中"
         : "待命";
   const invalidReason = getAccountStatusReason(account);
+  const renderCompactQuota = (metric: typeof insight.hourlyQuota) => (
+    <div className="min-w-0">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+        {metric.label.startsWith("5") ? "5h" : "Week"}
+      </div>
+      <div className="mt-1 text-sm font-semibold text-slate-950">
+        {typeof metric.percent === "number" ? `${Math.round(metric.percent)}%` : metric.valueLabel}
+      </div>
+      <div className="mt-0.5 truncate text-[11px] font-medium text-slate-500">
+        {metric.resetLabel ? `重置 ${metric.resetLabel}` : metric.detail}
+      </div>
+    </div>
+  );
 
   useEffect(() => {
     setDraftName(account.displayName);
@@ -147,23 +160,9 @@ const AccountCard: React.FC<AccountCardProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 lg:min-w-[260px] lg:grid-cols-3">
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-              5h
-            </div>
-            <div className="mt-1 text-sm font-semibold text-slate-950">
-              {insight.hourlyQuota.valueLabel}
-            </div>
-          </div>
-          <div>
-            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
-              Week
-            </div>
-            <div className="mt-1 text-sm font-semibold text-slate-950">
-              {insight.weeklyQuota.valueLabel}
-            </div>
-          </div>
+        <div className="grid grid-cols-2 gap-4 lg:min-w-[320px] lg:grid-cols-3">
+          {renderCompactQuota(insight.hourlyQuota)}
+          {renderCompactQuota(insight.weeklyQuota)}
           <div>
             <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
               Sync

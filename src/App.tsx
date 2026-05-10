@@ -466,7 +466,7 @@ const App: React.FC = () => {
             className={
               isTrayMode
                 ? "h-full"
-                : "relative z-10 mx-auto w-full max-w-[1520px] overflow-auto px-4 pb-10 pt-1 sm:px-6 sm:pt-2 lg:px-8 lg:pb-14"
+                : "relative z-10 mx-auto w-full max-w-[1320px] overflow-auto px-4 pb-8 pt-1 sm:px-6 sm:pt-2 lg:px-7 lg:pb-12"
             }
           >
             {isTrayMode ? (
