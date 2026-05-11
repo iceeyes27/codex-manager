@@ -238,6 +238,31 @@ describe("quota ranking", () => {
     expect(getSmartSwitchAccount([active, depletedCandidate])?.id).toBe("depleted");
   });
 
+  it("does not recommend an account with depleted weekly quota", () => {
+    const active = createAccount({
+      id: "active",
+      isActive: true,
+      rateLimits: {
+        planType: "plus",
+        primary: { remainingPercent: 4 },
+        secondary: { remainingPercent: 80 },
+      },
+    });
+    const weeklyDepletedCandidate = createAccount({
+      id: "weekly-depleted",
+      displayName: "Weekly Depleted",
+      rateLimits: {
+        planType: "plus",
+        primary: { remainingPercent: 80 },
+        secondary: { remainingPercent: 0 },
+      },
+    });
+
+    expect(getRecommendedAccountId([active, weeklyDepletedCandidate])).toBeNull();
+    expect(getSmartSwitchAccount([active, weeklyDepletedCandidate])).toBeNull();
+    expect(getBestQuotaAccount([active, weeklyDepletedCandidate])?.id).toBe("active");
+  });
+
   it("returns null when there is no usable quota data", () => {
     const account = createAccount({ rateLimits: null });
     expect(getRecommendedAccountId([account])).toBeNull();

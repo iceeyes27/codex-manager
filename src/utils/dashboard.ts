@@ -79,6 +79,11 @@ export function getRemainingPercent(
   return null;
 }
 
+function getUsableRemainingPercent(window: RateLimitWindow | null | undefined): number | null {
+  const remainingPercent = getRemainingPercent(window);
+  return remainingPercent !== null && remainingPercent > 0 ? remainingPercent : null;
+}
+
 type ZonedParts = {
   year: string;
   month: string;
@@ -380,15 +385,13 @@ function getRankedQuotaAccounts(accounts: Account[]): RankedQuotaAccount[] {
     .filter(
       (account) =>
         !isAccountInvalid(account) &&
-        (getRemainingPercent(account.rateLimits?.primary) !== null ||
-          getRemainingPercent(account.rateLimits?.secondary) !== null),
+        getUsableRemainingPercent(account.rateLimits?.primary) !== null &&
+        getUsableRemainingPercent(account.rateLimits?.secondary) !== null,
     )
     .map((account) => ({
       account,
-      primaryRemaining:
-        getRemainingPercent(account.rateLimits?.primary) ?? Number.NEGATIVE_INFINITY,
-      secondaryRemaining:
-        getRemainingPercent(account.rateLimits?.secondary) ?? Number.NEGATIVE_INFINITY,
+      primaryRemaining: getUsableRemainingPercent(account.rateLimits?.primary) ?? 0,
+      secondaryRemaining: getUsableRemainingPercent(account.rateLimits?.secondary) ?? 0,
     }))
     .sort((left, right) => {
       if (left.primaryRemaining !== right.primaryRemaining) {

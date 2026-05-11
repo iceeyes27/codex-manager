@@ -4,6 +4,7 @@ import { useAccountStore } from "../store/accountStore";
 import { exportBackupBundle } from "../utils/backup";
 import { DISPLAY_TIME_ZONE_LABEL } from "../utils/dashboard";
 import { hoverLift, revealUp } from "../utils/motion";
+import packageJson from "../../package.json";
 
 interface HeaderProps {
   onImportConfig: (file: File) => Promise<void>;
@@ -16,7 +17,7 @@ interface HeaderProps {
   unmanagedCurrentAuthLabel: string | null;
 }
 
-const APP_VERSION = "v1.2.4";
+const APP_VERSION = `v${packageJson.version}`;
 
 const Header: React.FC<HeaderProps> = ({
   onImportConfig,
