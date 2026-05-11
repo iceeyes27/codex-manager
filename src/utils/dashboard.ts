@@ -48,6 +48,15 @@ interface RankedQuotaAccount {
   secondaryRemaining: number;
 }
 
+export type SmartSwitchDecision =
+  | { status: "hold"; activeAccount: Account }
+  | { status: "switch"; targetAccount: Account }
+  | { status: "no_target"; activeAccount: Account }
+  | { status: "no_data" };
+
+const SMART_SWITCH_HOURLY_MIN_REMAINING = 5;
+const SMART_SWITCH_WEEKLY_MIN_REMAINING = 2;
+
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
@@ -392,12 +401,43 @@ function getRankedQuotaAccounts(accounts: Account[]): RankedQuotaAccount[] {
     });
 }
 
-export function getRecommendedAccountId(accounts: Account[]): string | null {
+export function shouldSmartSwitchAccount(account: Account): boolean {
+  const primaryRemaining = getRemainingPercent(account.rateLimits?.primary);
+  const secondaryRemaining = getRemainingPercent(account.rateLimits?.secondary);
+
   return (
-    getRankedQuotaAccounts(accounts)
-      .find(({ account }) => !account.isActive)
-      ?.account.id ?? null
+    (primaryRemaining !== null && primaryRemaining < SMART_SWITCH_HOURLY_MIN_REMAINING) ||
+    (secondaryRemaining !== null && secondaryRemaining < SMART_SWITCH_WEEKLY_MIN_REMAINING)
   );
+}
+
+export function getSmartSwitchDecision(accounts: Account[]): SmartSwitchDecision {
+  const activeAccount = accounts.find((account) => account.isActive);
+  if (activeAccount && !shouldSmartSwitchAccount(activeAccount)) {
+    return { status: "hold", activeAccount };
+  }
+
+  const rankedAccounts = getRankedQuotaAccounts(accounts);
+  const targetAccount = rankedAccounts.find(({ account }) => !account.isActive)?.account;
+  if (targetAccount) {
+    return { status: "switch", targetAccount };
+  }
+
+  if (activeAccount) {
+    return { status: "no_target", activeAccount };
+  }
+
+  return { status: "no_data" };
+}
+
+export function getRecommendedAccountId(accounts: Account[]): string | null {
+  const decision = getSmartSwitchDecision(accounts);
+  return decision.status === "switch" ? decision.targetAccount.id : null;
+}
+
+export function getSmartSwitchAccount(accounts: Account[]): Account | null {
+  const decision = getSmartSwitchDecision(accounts);
+  return decision.status === "switch" ? decision.targetAccount : null;
 }
 
 export function getBestQuotaAccount(accounts: Account[]): Account | null {

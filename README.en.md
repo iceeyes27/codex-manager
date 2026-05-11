@@ -141,9 +141,9 @@ If the auth state already belongs to an existing account, the app updates that a
 
 Current rule set:
 
-- Prefer the account with the lowest `5h` usage
-- If `5h` usage is tied, compare weekly usage
-- If the active account is already the best choice, do nothing
+- Switch when the active account has less than 5% `5h` quota left, or less than 2% weekly quota left
+- Candidate accounts must have valid quota data
+- Candidate accounts are ranked by `5h` remaining quota first, then weekly remaining quota
 
 ## Token Tracking
 

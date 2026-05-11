@@ -19,7 +19,11 @@ import {
   formatAuthIdentityLabel,
   parseAuthIdentity,
 } from "./utils/auth";
-import { getAccountStatusReason, getBestQuotaAccount, isAccountInvalid } from "./utils/dashboard";
+import {
+  getAccountStatusReason,
+  getSmartSwitchDecision,
+  isAccountInvalid,
+} from "./utils/dashboard";
 import { useAccountSwitch } from "./hooks/useAccountSwitch";
 import { Account } from "./types";
 import { MOTION_EASE, revealUp } from "./utils/motion";
@@ -233,21 +237,22 @@ const App: React.FC = () => {
       const hydrated = await hydrateAccounts(accounts);
       await persistAccounts(hydrated);
       const invalidCount = hydrated.filter((account) => isAccountInvalid(account)).length;
+      const smartSwitchDecision = getSmartSwitchDecision(hydrated);
 
-      const bestAccount = getBestQuotaAccount(hydrated);
-      if (!bestAccount) {
+      if (smartSwitchDecision.status === "hold") {
+        showToast(`${smartSwitchDecision.activeAccount.displayName} 当前额度仍充足`);
+        return;
+      }
+
+      if (smartSwitchDecision.status !== "switch") {
         throw new Error(
           invalidCount > 0
             ? `当前没有可用账号，已检测到 ${invalidCount} 个失效账号`
             : "当前没有足够数据",
         );
       }
-      if (bestAccount.isActive) {
-        showToast(`${bestAccount.displayName} 已是当前最佳选择`);
-        return;
-      }
 
-      await requestSwitch(bestAccount);
+      await requestSwitch(smartSwitchDecision.targetAccount);
     } catch (error) {
       showToast(`智能切换失败 · ${error instanceof Error ? error.message : String(error)}`);
     } finally {
