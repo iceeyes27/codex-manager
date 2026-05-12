@@ -1,6 +1,6 @@
 {
   "name": "codex-manager",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "type": "module",
   "bin": {
     "codex-manager": "./bin/codex-manager.mjs",

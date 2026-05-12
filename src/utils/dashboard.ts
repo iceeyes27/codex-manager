@@ -148,7 +148,7 @@ function formatResetShort(timestampSeconds: number | null | undefined, mode: "ti
     return `${parts.hour}:${parts.minute}`;
   }
 
-  return `${Number(parts.month)}月${Number(parts.day)}日`;
+  return `${Number(parts.month)}月${Number(parts.day)}日 ${parts.hour}:${parts.minute}`;
 }
 
 function formatSyncTime(iso: string | null): string {

@@ -56,7 +56,7 @@ describe("getAccountInsight", () => {
     expect(insight.hourlyQuota.valueLabel).toBe("92% · 02:43");
     expect(insight.hourlyQuota.detail).toBe("重置时间 2026-05-10 02:43");
     expect(insight.hourlyQuota.tone).toBe("healthy");
-    expect(insight.weeklyQuota.valueLabel).toBe("44% · 5月16日");
+    expect(insight.weeklyQuota.valueLabel).toBe("44% · 5月16日 00:30");
     expect(insight.weeklyQuota.detail).toBe("重置时间 2026-05-16 00:30");
     expect(insight.weeklyQuota.tone).toBe("warning");
     expect(insight.syncLabel).toBe("2026-03-11 18:00");
