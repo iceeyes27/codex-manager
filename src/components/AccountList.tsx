@@ -85,7 +85,7 @@ const AccountList: React.FC<AccountListProps> = ({
               <div className="absolute inset-x-0 top-0 h-20 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_70%)]" />
             </div>
 
-            <div className="relative grid gap-3 lg:grid-cols-[minmax(190px,0.9fr)_190px_minmax(260px,0.9fr)_150px] lg:items-center">
+            <div className="relative grid gap-3 lg:grid-cols-[minmax(190px,0.9fr)_190px_minmax(260px,0.9fr)_180px] lg:items-center">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-[10px] font-semibold uppercase tracking-[0.26em] text-slate-400">
@@ -141,29 +141,23 @@ const AccountList: React.FC<AccountListProps> = ({
                 </div>
               </div>
 
-              <div className="flex flex-col gap-1.5">
+              <div className="flex flex-col gap-2">
+                <button
+                  onClick={() => void onRefreshAccount(featuredAccount.id)}
+                  disabled={refreshingAccountIds.includes(featuredAccount.id) || isRefreshing}
+                  className="rounded-full bg-white px-4 py-2.5 text-sm font-black text-slate-950 shadow-[0_18px_34px_-24px_rgba(255,255,255,0.82)] transition-all hover:bg-slate-100 disabled:cursor-not-allowed disabled:bg-white/55 disabled:text-slate-500 disabled:shadow-none"
+                >
+                  {refreshingAccountIds.includes(featuredAccount.id) || isRefreshing
+                    ? "刷新中"
+                    : "刷新当前"}
+                </button>
                 <button
                   onClick={onRefreshUsage}
                   disabled={isRefreshing}
-                  className="rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-white/12 disabled:opacity-60"
+                  className="rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isRefreshing ? "刷新中" : "刷新全部"}
                 </button>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    onClick={() => void onRefreshAccount(featuredAccount.id)}
-                    disabled={refreshingAccountIds.includes(featuredAccount.id) || isRefreshing}
-                    className="rounded-full border border-white/12 bg-white/8 px-2 py-1.5 text-[11px] font-semibold text-white/80 transition-all hover:bg-white/12 disabled:opacity-60"
-                  >
-                    刷新
-                  </button>
-                  <button
-                    onClick={() => onDelete(featuredAccount.id)}
-                    className="rounded-full border border-white/12 bg-white/8 px-2 py-1.5 text-[11px] font-semibold text-white/72 transition-all hover:bg-white/12 hover:text-white"
-                  >
-                    删除
-                  </button>
-                </div>
                 <button
                   onClick={() =>
                     !featuredAccount.isActive &&
@@ -187,6 +181,12 @@ const AccountList: React.FC<AccountListProps> = ({
                     : isSwitchTarget
                       ? "切换中..."
                       : "切换到此账号"}
+                </button>
+                <button
+                  onClick={() => onDelete(featuredAccount.id)}
+                  className="mt-1 rounded-full border border-white/10 bg-transparent px-3 py-1.5 text-[11px] font-semibold text-white/56 transition-all hover:border-rose-200/35 hover:bg-rose-500/10 hover:text-rose-50"
+                >
+                  删除账号
                 </button>
               </div>
 

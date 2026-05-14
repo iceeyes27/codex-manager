@@ -397,9 +397,14 @@ async fn refresh_auth_tokens(
     Ok(())
 }
 
-fn pick_nearest_window(windows: &[UsageWindowRaw], target_seconds: i64) -> Option<UsageWindowRaw> {
+fn pick_nearest_window(
+    windows: &[UsageWindowRaw],
+    target_seconds: i64,
+    max_delta_seconds: i64,
+) -> Option<UsageWindowRaw> {
     windows
         .iter()
+        .filter(|window| (window.limit_window_seconds - target_seconds).abs() <= max_delta_seconds)
         .min_by_key(|window| (window.limit_window_seconds - target_seconds).abs())
         .cloned()
 }
@@ -448,8 +453,9 @@ fn map_usage_payload(payload: UsageApiResponse) -> GetAccountRateLimitsResponse 
             unlimited: Some(credit.unlimited),
             balance: credit.balance,
         }),
-        primary: pick_nearest_window(&windows, 5 * 60 * 60).map(to_usage_window),
-        secondary: pick_nearest_window(&windows, 7 * 24 * 60 * 60).map(to_usage_window),
+        primary: pick_nearest_window(&windows, 5 * 60 * 60, 60 * 60).map(to_usage_window),
+        secondary: pick_nearest_window(&windows, 7 * 24 * 60 * 60, 24 * 60 * 60)
+            .map(to_usage_window),
     };
 
     let mut by_limit_id = HashMap::new();
@@ -564,5 +570,60 @@ pub async fn read_account_rate_limits(
             err.message,
         ))),
         Err(err) => Err(err.message),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn window(used_percent: f64, limit_window_seconds: i64, reset_at: i64) -> UsageWindowRaw {
+        UsageWindowRaw {
+            used_percent,
+            limit_window_seconds,
+            reset_at,
+        }
+    }
+
+    #[test]
+    fn maps_weekly_quota_from_week_window_not_daily_window() {
+        let response = map_usage_payload(UsageApiResponse {
+            plan_type: Some("team".to_string()),
+            rate_limit: Some(RateLimitDetails {
+                primary_window: Some(window(1.0, 5 * 60 * 60, 1_800)),
+                secondary_window: Some(window(0.0, 24 * 60 * 60, 86_400)),
+            }),
+            additional_rate_limits: Some(vec![AdditionalRateLimitDetails {
+                rate_limit: Some(RateLimitDetails {
+                    primary_window: None,
+                    secondary_window: Some(window(41.0, 7 * 24 * 60 * 60, 604_800)),
+                }),
+            }]),
+            credits: None,
+        });
+
+        let snapshot = response.rate_limits.expect("rate limits should be present");
+        assert_eq!(snapshot.primary.expect("primary").remaining_percent, 99);
+
+        let weekly = snapshot.secondary.expect("weekly");
+        assert_eq!(weekly.remaining_percent, 59);
+        assert_eq!(weekly.resets_at, Some(604_800));
+        assert_eq!(weekly.window_duration_mins, Some(7 * 24 * 60));
+    }
+
+    #[test]
+    fn does_not_treat_daily_window_as_weekly_quota() {
+        let response = map_usage_payload(UsageApiResponse {
+            plan_type: Some("team".to_string()),
+            rate_limit: Some(RateLimitDetails {
+                primary_window: Some(window(1.0, 5 * 60 * 60, 1_800)),
+                secondary_window: Some(window(0.0, 24 * 60 * 60, 86_400)),
+            }),
+            additional_rate_limits: None,
+            credits: None,
+        });
+
+        let snapshot = response.rate_limits.expect("rate limits should be present");
+        assert!(snapshot.secondary.is_none());
     }
 }

@@ -50,29 +50,36 @@ export async function hydrateAccounts(accounts: Account[]): Promise<Account[]> {
 
   return Promise.all(
     accounts.map(async (account) => {
-      const rateLimitResult = await api
-        .readAccountRateLimits(account.id)
-        .then((result) => ({
-          rateLimits: result.rateLimits ?? null,
-          rateLimitsError:
-            result.accountStatus === "invalid"
-              ? result.accountStatusReason ?? "账号已失效或不可用"
-              : null,
-          accountStatus:
-            result.accountStatus ?? (result.rateLimits ? "available" : "unknown"),
-          accountStatusReason: result.accountStatusReason ?? null,
-        }))
-        .catch((error: unknown) => ({
-          rateLimits: null,
-          rateLimitsError: error instanceof Error ? error.message : String(error),
-          accountStatus: "unknown" as const,
-          accountStatusReason: null,
-        }));
       const isActive = preserveStoredActive
         ? account.isActive
         : activeAccountId
           ? account.id === activeAccountId
           : false;
+      const rateLimitResult = isActive
+        ? await api
+            .readAccountRateLimits(account.id)
+            .then((result) => ({
+              rateLimits: result.rateLimits ?? null,
+              rateLimitsError:
+                result.accountStatus === "invalid"
+                  ? result.accountStatusReason ?? "账号已失效或不可用"
+                  : null,
+              accountStatus:
+                result.accountStatus ?? (result.rateLimits ? "available" : "unknown"),
+              accountStatusReason: result.accountStatusReason ?? null,
+            }))
+            .catch((error: unknown) => ({
+              rateLimits: null,
+              rateLimitsError: error instanceof Error ? error.message : String(error),
+              accountStatus: "unknown" as const,
+              accountStatusReason: null,
+            }))
+        : {
+            rateLimits: account.rateLimits ?? null,
+            rateLimitsError: account.rateLimitsError ?? null,
+            accountStatus: account.accountStatus ?? (account.rateLimits ? "available" : "unknown"),
+            accountStatusReason: account.accountStatusReason ?? null,
+          };
 
       if (isActive) {
         return {
