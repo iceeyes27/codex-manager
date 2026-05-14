@@ -13,6 +13,10 @@ export interface CurrentAuthState {
   preserveStoredActive: boolean;
 }
 
+interface HydrateAccountsOptions {
+  refreshRateLimitAccountIds?: ReadonlySet<string>;
+}
+
 export async function resolveCurrentAuthState(accounts: Account[]): Promise<CurrentAuthState> {
   const storedActiveAccountId = accounts.find((account) => account.isActive)?.id ?? null;
   const currentAuth = await api.readAuthJson().catch(() => null);
@@ -41,7 +45,10 @@ export async function resolveCurrentAuthState(accounts: Account[]): Promise<Curr
   };
 }
 
-export async function hydrateAccounts(accounts: Account[]): Promise<Account[]> {
+export async function hydrateAccounts(
+  accounts: Account[],
+  options: HydrateAccountsOptions = {},
+): Promise<Account[]> {
   const currentAuthState = await resolveCurrentAuthState(accounts);
   const { activeAccountId, preserveStoredActive } = currentAuthState;
   const activeSessionInfo = activeAccountId
@@ -55,7 +62,9 @@ export async function hydrateAccounts(accounts: Account[]): Promise<Account[]> {
         : activeAccountId
           ? account.id === activeAccountId
           : false;
-      const rateLimitResult = isActive
+      const shouldRefreshRateLimits =
+        isActive || options.refreshRateLimitAccountIds?.has(account.id) === true;
+      const rateLimitResult = shouldRefreshRateLimits
         ? await api
             .readAccountRateLimits(account.id)
             .then((result) => ({

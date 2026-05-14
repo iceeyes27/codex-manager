@@ -72,7 +72,7 @@ describe("hydrateAccounts", () => {
     expect(hydrated.find((account) => account.id === "standby")?.rateLimits?.primary?.remainingPercent).toBe(23);
   });
 
-  it("does not turn a manually refreshed standby account into realtime quota", async () => {
+  it("keeps standby quota unchanged during default hydration", async () => {
     const standby = createAccount({
       id: "standby",
       email: "standby@example.com",
@@ -90,5 +90,23 @@ describe("hydrateAccounts", () => {
     expect(apiMock.readAccountRateLimits).not.toHaveBeenCalled();
     expect(hydrated.rateLimits?.primary?.remainingPercent).toBe(23);
     expect(hydrated.rateLimits?.secondary?.remainingPercent).toBe(65);
+  });
+
+  it("refreshes quota for a selected standby account", async () => {
+    const standby = createAccount({
+      id: "standby",
+      email: "standby@example.com",
+      rateLimits: null,
+      accountStatus: "unknown",
+    });
+
+    const [hydrated] = await hydrateAccounts([standby], {
+      refreshRateLimitAccountIds: new Set(["standby"]),
+    });
+
+    expect(apiMock.readAccountRateLimits).toHaveBeenCalledTimes(1);
+    expect(apiMock.readAccountRateLimits).toHaveBeenCalledWith("standby");
+    expect(hydrated.rateLimits?.primary?.remainingPercent).toBe(99);
+    expect(hydrated.rateLimits?.secondary?.remainingPercent).toBe(41);
   });
 });

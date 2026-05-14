@@ -148,7 +148,9 @@ const App: React.FC = () => {
 
     setRefreshingAccountIds((current) => [...current, accountId]);
     try {
-      const [hydrated] = await hydrateAccounts([target]);
+      const [hydrated] = await hydrateAccounts([target], {
+        refreshRateLimitAccountIds: new Set([accountId]),
+      });
       if (!hydrated) {
         throw new Error("未获取到账号数据");
       }
