@@ -50,9 +50,8 @@ Codex Manager reduces both to a few desktop and tray actions.
 
 Recommended: download a packaged build from GitHub Releases.
 
-- Windows: `.msi` or `.exe`
-- macOS: `.dmg`
-- Linux: `.deb`, `.rpm`, or `.AppImage`
+- Windows: `codex-manager_x64-setup.exe`
+- macOS: `codex-manager_aarch64.dmg`
 
 Releases: <https://github.com/davaded/codex-manager/releases>
 
@@ -62,16 +61,13 @@ After installation, the `codex-manager` command behaves like this:
 
 | Platform | Recommended package | CLI availability |
 | --- | --- | --- |
-| Windows | `.exe` or `.msi` | Installed to `PATH` automatically |
-| macOS | `.dmg` | Use the bundled helper script once |
-| Linux | `.deb` or `.rpm` | Available directly as `codex-manager` |
-| Linux | `.AppImage` | Use the helper script once, or keep it portable |
+| Windows | `codex-manager_x64-setup.exe` | Installed to `PATH` automatically |
+| macOS | `codex-manager_aarch64.dmg` | Use the repo helper script to add it to `PATH` |
 
 Notes:
 
 - On Windows, reopen your terminal after installation so the new `PATH` is picked up.
-- On macOS, the release ships as a `.dmg`. If you also want a global `codex-manager` command, run the bundled helper script once after dragging the app into `/Applications`.
-- On Linux, prefer `.deb` or `.rpm` if you want a package-managed CLI experience.
+- On macOS, the release ships only as `codex-manager_aarch64.dmg`. If you also want a global `codex-manager` command, drag the app into `/Applications`, then run `scripts/install-unix-cli.sh` from this repo.
 - The app reads and writes `~/.codex/auth.json`, so Codex CLI should already be installed and working.
 
 ## Command Line Switching
@@ -89,7 +85,7 @@ The CLI updates both the managed `accounts.json` state and the live `~/.codex/au
 
 If Codex CLI or the desktop app is already running, restart it after switching so the new auth takes effect.
 
-For `.dmg` and `.AppImage` installs, the release helper script can expose the command globally:
+For `.dmg` installs, the repo helper script can expose the command globally:
 
 ```bash
 sudo bash ./install-unix-cli.sh /Applications/codex-manager.app /usr/local/bin/codex-manager

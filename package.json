@@ -12,6 +12,8 @@
     "build": "tsc && vite build",
     "test": "vitest run",
     "preview": "vite preview",
+    "tauri:build:windows": "tauri build --bundles nsis",
+    "tauri:build:macos": "tauri build --target aarch64-apple-darwin --bundles dmg",
     "tauri": "tauri"
   },
   "dependencies": {

@@ -50,9 +50,8 @@ Codex Manager 把这些操作收敛成桌面窗口、托盘面板和命令行里
 
 推荐直接从 GitHub Releases 下载打包产物：
 
-- Windows：`.msi` 或 `.exe`
-- macOS：`.dmg`
-- Linux：`.deb`、`.rpm` 或 `.AppImage`
+- Windows：`codex-manager_x64-setup.exe`
+- macOS：`codex-manager_aarch64.dmg`
 
 下载地址：<https://github.com/davaded/codex-manager/releases>
 
@@ -62,16 +61,13 @@ Codex Manager 把这些操作收敛成桌面窗口、托盘面板和命令行里
 
 | 平台 | 推荐安装包 | CLI 可用性 |
 | --- | --- | --- |
-| Windows | `.exe` 或 `.msi` | 自动加入 `PATH` |
-| macOS | `.dmg` | 需要额外执行一次 helper 脚本 |
-| Linux | `.deb` 或 `.rpm` | 安装后可直接使用 `codex-manager` |
-| Linux | `.AppImage` | 需要额外执行一次 helper 脚本，或保持便携运行 |
+| Windows | `codex-manager_x64-setup.exe` | 自动加入 `PATH` |
+| macOS | `codex-manager_aarch64.dmg` | 可使用仓库脚本加入 `PATH` |
 
 说明：
 
 - Windows 安装后请重新打开一个终端窗口，让新的 `PATH` 生效。
-- macOS 版本只提供 `.dmg`。如果还希望在 Terminal 里直接使用 `codex-manager`，把应用拖到 `/Applications` 后再执行一次 helper 脚本即可。
-- Linux 如果希望获得最稳定的系统级 CLI 体验，优先使用 `.deb` 或 `.rpm`。
+- macOS 版本只提供 `codex-manager_aarch64.dmg`。如果还希望在 Terminal 里直接使用 `codex-manager`，把应用拖到 `/Applications` 后再执行仓库里的 `scripts/install-unix-cli.sh`。
 - 应用会读写 `~/.codex/auth.json`，所以机器上需要先能正常使用 Codex CLI。
 
 ## 命令行切换
@@ -89,7 +85,7 @@ CLI 会同时更新受管账号状态和当前生效的 `~/.codex/auth.json`。
 
 如果 Codex CLI 或桌面应用已经在运行，切换后请重启它们，让新的 auth 生效。
 
-对于 `.dmg` 和 `.AppImage` 安装方式，可以使用发布包里的 helper 脚本暴露全局命令：
+对于 `.dmg` 安装方式，可以使用仓库里的 helper 脚本暴露全局命令：
 
 ```bash
 sudo bash ./install-unix-cli.sh /Applications/codex-manager.app /usr/local/bin/codex-manager
