@@ -50,8 +50,8 @@ Codex Manager 把这些操作收敛成桌面窗口、托盘面板和命令行里
 
 推荐直接从 GitHub Releases 下载打包产物：
 
-- Windows：`codex-manager_x64-setup.exe`
-- macOS：`codex-manager_aarch64.dmg`
+- Windows：`codex-manager_<版本号>_x64-setup.exe`
+- macOS：`codex-manager_<版本号>_aarch64.dmg`
 
 下载地址：<https://github.com/davaded/codex-manager/releases>
 
@@ -61,13 +61,13 @@ Codex Manager 把这些操作收敛成桌面窗口、托盘面板和命令行里
 
 | 平台 | 推荐安装包 | CLI 可用性 |
 | --- | --- | --- |
-| Windows | `codex-manager_x64-setup.exe` | 自动加入 `PATH` |
-| macOS | `codex-manager_aarch64.dmg` | 可使用仓库脚本加入 `PATH` |
+| Windows | `codex-manager_<版本号>_x64-setup.exe` | 自动加入 `PATH` |
+| macOS | `codex-manager_<版本号>_aarch64.dmg` | 可使用仓库脚本加入 `PATH` |
 
 说明：
 
 - Windows 安装后请重新打开一个终端窗口，让新的 `PATH` 生效。
-- macOS 版本只提供 `codex-manager_aarch64.dmg`。如果还希望在 Terminal 里直接使用 `codex-manager`，把应用拖到 `/Applications` 后再执行仓库里的 `scripts/install-unix-cli.sh`。
+- macOS 版本只提供 `codex-manager_<版本号>_aarch64.dmg`。如果还希望在 Terminal 里直接使用 `codex-manager`，把应用拖到 `/Applications` 后再执行仓库里的 `scripts/install-unix-cli.sh`。
 - 应用会读写 `~/.codex/auth.json`，所以机器上需要先能正常使用 Codex CLI。
 
 ## 命令行切换
