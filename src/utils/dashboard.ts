@@ -159,30 +159,11 @@ function formatSyncTime(iso: string | null): string {
   try {
     const date = new Date(iso);
     const parts = getZonedParts(date);
-    const nowParts = getZonedParts(new Date());
-    if (!parts || !nowParts) {
+    if (!parts) {
       return "时间未知";
     }
 
-    const dateKey = formatZonedDateKey(parts);
-    const todayKey = formatZonedDateKey(nowParts);
-    const yesterdayDate = new Date(
-      Date.UTC(Number(nowParts.year), Number(nowParts.month) - 1, Number(nowParts.day)) -
-        24 * 60 * 60 * 1000,
-    );
-    const yesterdayKey = formatZonedDateKey({
-      year: String(yesterdayDate.getUTCFullYear()),
-      month: String(yesterdayDate.getUTCMonth() + 1).padStart(2, "0"),
-      day: String(yesterdayDate.getUTCDate()).padStart(2, "0"),
-    });
-
-    if (dateKey === todayKey) {
-      return `今天 ${parts.hour}:${parts.minute}`;
-    }
-    if (dateKey === yesterdayKey) {
-      return `昨天 ${parts.hour}:${parts.minute}`;
-    }
-    return `${dateKey} ${parts.hour}:${parts.minute}`;
+    return `${formatZonedDateKey(parts)} ${parts.hour}:${parts.minute}`;
   } catch {
     return "时间未知";
   }

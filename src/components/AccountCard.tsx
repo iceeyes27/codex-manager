@@ -108,7 +108,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
     return (
       <motion.article
         layout
-        className="apple-panel flex flex-col gap-4 rounded-[28px] px-5 py-4 lg:flex-row lg:items-center lg:justify-between"
+        className="apple-panel grid gap-4 rounded-[28px] px-5 py-4 lg:grid-cols-[minmax(0,1fr)_390px_172px] lg:items-center"
         whileHover={hoverLift(prefersReducedMotion)}
       >
         <div className="min-w-0 flex-1">
@@ -160,7 +160,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 lg:min-w-[320px] lg:grid-cols-3">
+        <div className="grid grid-cols-[58px_minmax(132px,1fr)] gap-x-4 gap-y-3 lg:grid-cols-[58px_minmax(132px,1fr)_84px] lg:gap-x-4">
           {renderCompactQuota(insight.hourlyQuota)}
           {renderCompactQuota(insight.weeklyQuota)}
           <div>
@@ -173,7 +173,7 @@ const AccountCard: React.FC<AccountCardProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-start gap-2 lg:justify-end">
           <button
             onClick={() => void onRefresh()}
             disabled={isQuotaRefreshing}

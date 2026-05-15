@@ -15,6 +15,7 @@ import { api } from "../utils/invoke";
 import type { Account, UsageStatsSummary } from "../types";
 import { hoverLift, revealUp } from "../utils/motion";
 import { getAccountTokenUsage } from "../utils/tokenLedger";
+import { formatUsdEstimate, getAccountQuotaUsdEstimate } from "../utils/quotaValue";
 
 interface UsageStatsPageProps {
   isRefreshing: boolean;
@@ -81,6 +82,20 @@ function formatAccountSessionModel(
   }
 
   return usageStats?.latestModel ?? "--";
+}
+
+function formatAccountQuotaUsdEstimate(
+  account: Account,
+  usageStats: UsageStatsSummary | null,
+): string {
+  const estimate = getAccountQuotaUsdEstimate(account, usageStats);
+  if (!estimate) {
+    return "--";
+  }
+
+  return `5h ${formatUsdEstimate(estimate.hourlyLimitUsd)} / 周 ${formatUsdEstimate(
+    estimate.weeklyLimitUsd,
+  )}`;
 }
 
 const UsageStatsPage: React.FC<UsageStatsPageProps> = ({
@@ -476,7 +491,7 @@ const UsageStatsPage: React.FC<UsageStatsPageProps> = ({
                     </p>
                   </div>
 
-                  <div className="grid gap-3 sm:grid-cols-4 lg:min-w-[420px]">
+                  <div className="grid gap-3 sm:grid-cols-5 lg:min-w-[540px]">
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
                         模型
@@ -505,6 +520,15 @@ const UsageStatsPage: React.FC<UsageStatsPageProps> = ({
                           ? `重置 ${getAccountInsight(account).hourlyQuota.resetLabel}`
                           : "--"}
                       </p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
+                        美元上限
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-slate-900">
+                        {formatAccountQuotaUsdEstimate(account, usageStats)}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">按当前模型估算</p>
                     </div>
                     <div>
                       <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">
