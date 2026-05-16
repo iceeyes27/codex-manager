@@ -85,6 +85,8 @@ pub struct AppSettings {
     pub auto_refresh_interval: u32,
     #[serde(default = "default_auto_restart_codex_after_switch")]
     pub auto_restart_codex_after_switch: bool,
+    #[serde(default)]
+    pub auto_restart_vscode_after_switch: bool,
     pub theme: String,
     pub proxy_url: String,
 }
@@ -98,6 +100,7 @@ fn default_auto_restart_codex_after_switch() -> bool {
 pub struct DesktopPlatformCapabilities {
     pub platform: String,
     pub supports_auto_restart_codex_desktop: bool,
+    pub supports_auto_restart_vscode: bool,
     pub supports_resume_session_in_terminal: bool,
     pub supports_system_tray: bool,
     pub supports_taskbar_shortcuts: bool,

@@ -23,6 +23,7 @@ function createBundle(account: Account, credentials: string | null): BackupBundl
     settings: {
       autoRefreshInterval: 0,
       autoRestartCodexAfterSwitch: true,
+      autoRestartVscodeAfterSwitch: false,
       theme: "system",
       proxyUrl: "",
     },

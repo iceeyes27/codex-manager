@@ -105,6 +105,7 @@ const demoCredentials: Record<string, string> = {
 const demoSettings: AppSettings = {
   autoRefreshInterval: 0,
   autoRestartCodexAfterSwitch: true,
+  autoRestartVscodeAfterSwitch: false,
   theme: "system",
   proxyUrl: "",
 };
@@ -112,6 +113,7 @@ const demoSettings: AppSettings = {
 const mockPlatformCapabilities: DesktopPlatformCapabilities = {
   platform: "browser",
   supportsAutoRestartCodexDesktop: false,
+  supportsAutoRestartVscode: false,
   supportsResumeSessionInTerminal: false,
   supportsSystemTray: false,
   supportsTaskbarShortcuts: false,
@@ -411,6 +413,9 @@ const browserApi = {
   async restartCodexDesktop(): Promise<void> {
     return;
   },
+  async restartVscode(): Promise<void> {
+    return;
+  },
   async startOauthFlow(): Promise<OAuthResult> {
     const stamp = Date.now().toString().slice(-5);
     return {
@@ -469,6 +474,7 @@ export const api = isTauriRuntime
       resumeSessionInTerminal: (sessionId: string) =>
         invoke<void>("resume_session_in_terminal", { sessionId }),
       restartCodexDesktop: () => invoke<void>("restart_codex_desktop"),
+      restartVscode: () => invoke<void>("restart_vscode"),
 
       // oauth
       startOauthFlow: () => invoke<OAuthResult>("start_oauth_flow"),

@@ -32,6 +32,10 @@ function normalizeBackupSettings(settings: Partial<AppSettings>): AppSettings {
       typeof settings.autoRestartCodexAfterSwitch === "boolean"
         ? settings.autoRestartCodexAfterSwitch
         : true,
+    autoRestartVscodeAfterSwitch:
+      typeof settings.autoRestartVscodeAfterSwitch === "boolean"
+        ? settings.autoRestartVscodeAfterSwitch
+        : false,
     theme:
       settings.theme === "light" ||
       settings.theme === "dark" ||

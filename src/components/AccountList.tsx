@@ -18,7 +18,6 @@ interface AccountListProps {
   refreshingAccountIds: string[];
   onDelete: (id: string) => void;
   onRefreshAccount: (id: string) => Promise<void>;
-  onRefreshUsage: () => Promise<void>;
   onRename: (id: string, displayName: string) => Promise<void>;
   onSwitch: (account: Account) => void;
 }
@@ -28,7 +27,6 @@ const AccountList: React.FC<AccountListProps> = ({
   refreshingAccountIds,
   onDelete,
   onRefreshAccount,
-  onRefreshUsage,
   onRename,
   onSwitch,
 }) => {
@@ -151,37 +149,27 @@ const AccountList: React.FC<AccountListProps> = ({
                     ? "刷新中"
                     : "刷新当前"}
                 </button>
-                <button
-                  onClick={onRefreshUsage}
-                  disabled={isRefreshing}
-                  className="rounded-full border border-white/12 bg-white/8 px-3 py-1.5 text-xs font-semibold text-white transition-all hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {isRefreshing ? "刷新中" : "刷新全部"}
-                </button>
-                <button
-                  onClick={() =>
-                    !featuredAccount.isActive &&
-                    !featuredInvalid &&
-                    !isSwitching &&
-                    onSwitch(featuredAccount)
-                  }
-                  disabled={featuredAccount.isActive || featuredInvalid || isSwitching}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all disabled:cursor-not-allowed ${
-                    featuredInvalid
-                      ? "border border-rose-200 bg-rose-50 text-rose-600"
-                      : featuredAccount.isActive
-                      ? "border border-white/12 bg-white/10 text-white"
-                      : "bg-white text-slate-950 shadow-[0_18px_32px_-24px_rgba(255,255,255,0.78)] disabled:bg-white/60"
-                  }`}
-                >
-                  {featuredInvalid
-                    ? "账号失效"
-                    : featuredAccount.isActive
-                    ? "当前使用中"
-                    : isSwitchTarget
-                      ? "切换中..."
-                      : "切换到此账号"}
-                </button>
+                {!featuredAccount.isActive && (
+                  <button
+                    onClick={() =>
+                      !featuredInvalid &&
+                      !isSwitching &&
+                      onSwitch(featuredAccount)
+                    }
+                    disabled={featuredInvalid || isSwitching}
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-all disabled:cursor-not-allowed ${
+                      featuredInvalid
+                        ? "border border-rose-200 bg-rose-50 text-rose-600"
+                        : "bg-white text-slate-950 shadow-[0_18px_32px_-24px_rgba(255,255,255,0.78)] disabled:bg-white/60"
+                    }`}
+                  >
+                    {featuredInvalid
+                      ? "账号失效"
+                      : isSwitchTarget
+                        ? "切换中..."
+                        : "切换到此账号"}
+                  </button>
+                )}
                 <button
                   onClick={() => onDelete(featuredAccount.id)}
                   className="mt-1 rounded-full border border-white/10 bg-transparent px-3 py-1.5 text-[11px] font-semibold text-white/56 transition-all hover:border-rose-200/35 hover:bg-rose-500/10 hover:text-rose-50"

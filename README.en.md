@@ -48,12 +48,13 @@ Codex Manager reduces both to a few desktop and tray actions.
 
 ## Installation
 
-Recommended: download a packaged build from GitHub Releases.
+Recommended: download the Windows packaged build from GitHub Releases.
 
 - Windows: `codex-manager_<version>_x64-setup.exe`
-- macOS: `codex-manager_<version>_aarch64.dmg`
 
 Releases: <https://github.com/davaded/codex-manager/releases>
+
+For macOS, build the DMG locally with `npm run tauri:build:macos`. The output is written to `src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/`.
 
 ### CLI Availability
 
@@ -62,12 +63,12 @@ After installation, the `codex-manager` command behaves like this:
 | Platform | Recommended package | CLI availability |
 | --- | --- | --- |
 | Windows | `codex-manager_<version>_x64-setup.exe` | Installed to `PATH` automatically |
-| macOS | `codex-manager_<version>_aarch64.dmg` | Use the repo helper script to add it to `PATH` |
+| macOS | Locally built `codex-manager_<version>_aarch64.dmg` | Use the repo helper script to add it to `PATH` |
 
 Notes:
 
 - On Windows, reopen your terminal after installation so the new `PATH` is picked up.
-- On macOS, the release ships only as `codex-manager_<version>_aarch64.dmg`. If you also want a global `codex-manager` command, drag the app into `/Applications`, then run `scripts/install-unix-cli.sh` from this repo.
+- After building the macOS DMG locally, if you also want a global `codex-manager` command, drag the app into `/Applications`, then run `scripts/install-unix-cli.sh` from this repo.
 - The app reads and writes `~/.codex/auth.json`, so Codex CLI should already be installed and working.
 
 ## Command Line Switching

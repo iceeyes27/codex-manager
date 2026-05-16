@@ -80,6 +80,7 @@ export interface OAuthResult {
 export interface AppSettings {
   autoRefreshInterval: number; // minutes, 0 = disabled
   autoRestartCodexAfterSwitch: boolean;
+  autoRestartVscodeAfterSwitch: boolean;
   theme: 'light' | 'dark' | 'system';
   proxyUrl: string;
 }
@@ -87,6 +88,7 @@ export interface AppSettings {
 export interface DesktopPlatformCapabilities {
   platform: string;
   supportsAutoRestartCodexDesktop: boolean;
+  supportsAutoRestartVscode: boolean;
   supportsResumeSessionInTerminal: boolean;
   supportsSystemTray: boolean;
   supportsTaskbarShortcuts: boolean;

@@ -33,6 +33,10 @@ type ConfirmState =
   | { kind: "switch"; account: Account }
   | null;
 
+function formatRestartTargets(targets: string[]): string {
+  return targets.length <= 1 ? targets.join("") : targets.join(" 和 ");
+}
+
 const App: React.FC = () => {
   const {
     setAccounts,
@@ -64,6 +68,23 @@ const App: React.FC = () => {
     (new URLSearchParams(window.location.search).get("tray") === "1" ||
       window.location.hash === "#tray");
 
+  const getEnabledRestartTargets = () => {
+    const targets: string[] = [];
+    if (
+      settings.autoRestartCodexAfterSwitch &&
+      platformCapabilities?.supportsAutoRestartCodexDesktop === true
+    ) {
+      targets.push("Codex");
+    }
+    if (
+      settings.autoRestartVscodeAfterSwitch &&
+      platformCapabilities?.supportsAutoRestartVscode === true
+    ) {
+      targets.push("VSCode");
+    }
+    return targets;
+  };
+
   const executeSwitch = async (account: Account) => {
     await switchAccount(account);
   };
@@ -73,11 +94,9 @@ const App: React.FC = () => {
       return;
     }
 
-    const canAutoRestartCodex =
-      settings.autoRestartCodexAfterSwitch &&
-      platformCapabilities?.supportsAutoRestartCodexDesktop === true;
+    const restartTargets = getEnabledRestartTargets();
 
-    if (canAutoRestartCodex) {
+    if (restartTargets.length > 0) {
       setConfirmState({ kind: "switch", account });
       return;
     }
@@ -408,6 +427,10 @@ const App: React.FC = () => {
     }
   };
 
+  const switchRestartTargets =
+    confirmState?.kind === "switch" ? getEnabledRestartTargets() : [];
+  const switchRestartTargetLabel = formatRestartTargets(switchRestartTargets) || "相关应用";
+
   return (
     <LazyMotion features={domAnimation}>
       <MotionConfig transition={{ duration: 0.72, ease: MOTION_EASE }}>
@@ -492,7 +515,6 @@ const App: React.FC = () => {
                       refreshingAccountIds={refreshingAccountIds}
                       onDelete={(id) => setConfirmState({ kind: "delete", accountId: id })}
                       onRefreshAccount={refreshAccount}
-                      onRefreshUsage={() => refreshAccounts(false)}
                       onRename={handleRename}
                       onSwitch={(account) => void requestSwitch(account)}
                     />
@@ -522,7 +544,7 @@ const App: React.FC = () => {
           {confirmState?.kind === "switch" && (
         <ConfirmDialog
           title="切换账户"
-          message={`切换到 ${confirmState.account.displayName} 后，Codex 会重新打开。当前桌面会话会中断。`}
+          message={`切换到 ${confirmState.account.displayName} 后，${switchRestartTargetLabel} 会重新打开。当前桌面会话会中断。`}
           confirmLabel="继续"
           tone="primary"
           onConfirm={() => void handleConfirmSwitch()}

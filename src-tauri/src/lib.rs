@@ -501,6 +501,7 @@ pub fn run() {
             sessions::delete_account_sessions,
             desktop::resume_session_in_terminal,
             desktop::restart_codex_desktop,
+            desktop::restart_vscode,
             desktop::get_platform_capabilities,
             usage::read_account_rate_limits,
             // oauth
