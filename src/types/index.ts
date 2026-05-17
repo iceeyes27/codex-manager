@@ -124,6 +124,26 @@ export interface UsageStatsSummary {
   models: ModelUsageSummary[];
 }
 
+export interface DailyWorkspaceUsageTotals {
+  credits?: number | null;
+  turns?: number | null;
+  textTotalTokens?: number | null;
+  cachedTextInputTokens?: number | null;
+  uncachedTextInputTokens?: number | null;
+  textOutputTokens?: number | null;
+}
+
+export interface DailyWorkspaceUsage {
+  date: string;
+  totals?: DailyWorkspaceUsageTotals | null;
+}
+
+export interface DailyWorkspaceUsageResponse {
+  data: DailyWorkspaceUsage[];
+  startDate: string;
+  endDate: string;
+}
+
 export interface CreditsSnapshot {
   hasCredits?: boolean | null;
   unlimited?: boolean | null;
@@ -132,6 +152,7 @@ export interface CreditsSnapshot {
 
 export interface RateLimitWindow {
   remainingPercent: number;
+  usedPercent?: number | null;
   resetsAt?: number | null;
   windowDurationMins?: number | null;
 }

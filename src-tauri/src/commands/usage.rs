@@ -13,8 +13,8 @@ use crate::{
     atomic_io::write_text_atomic_async,
     commands::{accounts, paths::app_data_dir},
     models::{
-        AccountRateLimitStatus, AuthJson, CreditsSnapshot, GetAccountRateLimitsResponse,
-        RateLimitSnapshot, RateLimitWindow, TokenResponse,
+        AccountRateLimitStatus, AuthJson, CreditsSnapshot, DailyWorkspaceUsageResponse,
+        GetAccountRateLimitsResponse, RateLimitSnapshot, RateLimitWindow, TokenResponse,
     },
     net::build_http_client,
 };
@@ -23,6 +23,7 @@ const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
 const DEFAULT_CHATGPT_BASE_URL: &str = "https://chatgpt.com";
 const CODEX_USAGE_PATH: &str = "/api/codex/usage";
 const WHAM_USAGE_PATH: &str = "/wham/usage";
+const DAILY_WORKSPACE_USAGE_PATH: &str = "/wham/analytics/daily-workspace-usage-counts";
 const BACKEND_API_PREFIX: &str = "/backend-api";
 
 fn validate_uuid(account_id: &str) -> Result<String, String> {
@@ -183,6 +184,36 @@ fn resolve_usage_urls() -> Vec<String> {
     deduped
 }
 
+fn resolve_daily_workspace_usage_urls(start_date: &str, end_date: &str) -> Vec<String> {
+    let normalized = resolve_chatgpt_base_origin();
+    let query = format!("start_date={start_date}&end_date={end_date}&group_by=day");
+    let mut candidates = Vec::new();
+
+    if let Some(origin) = normalized.strip_suffix(BACKEND_API_PREFIX) {
+        candidates.push(format!("{normalized}{DAILY_WORKSPACE_USAGE_PATH}?{query}"));
+        candidates.push(format!(
+            "{origin}{BACKEND_API_PREFIX}{DAILY_WORKSPACE_USAGE_PATH}?{query}"
+        ));
+    } else {
+        candidates.push(format!(
+            "{normalized}{BACKEND_API_PREFIX}{DAILY_WORKSPACE_USAGE_PATH}?{query}"
+        ));
+        candidates.push(format!("{normalized}{DAILY_WORKSPACE_USAGE_PATH}?{query}"));
+    }
+
+    candidates.push(format!(
+        "https://chatgpt.com{BACKEND_API_PREFIX}{DAILY_WORKSPACE_USAGE_PATH}?{query}"
+    ));
+
+    let mut deduped = Vec::new();
+    for url in candidates {
+        if !deduped.iter().any(|existing| existing == &url) {
+            deduped.push(url);
+        }
+    }
+    deduped
+}
+
 fn read_chatgpt_base_url_from_config() -> Option<String> {
     let home = dirs::home_dir()?;
     let config_path = home.join(".codex").join("config.toml");
@@ -320,6 +351,74 @@ async fn request_usage_payload(
     })
 }
 
+async fn request_daily_workspace_usage_payload(
+    client: &reqwest::Client,
+    access_token: &str,
+    account_id: &str,
+    start_date: &str,
+    end_date: &str,
+) -> Result<DailyWorkspaceUsageResponse, UsageFetchError> {
+    let urls = resolve_daily_workspace_usage_urls(start_date, end_date);
+    let mut errors: Vec<String> = Vec::new();
+    let mut should_refresh_auth = false;
+    let mut invalid_account = false;
+
+    for url in urls {
+        let response = match client
+            .get(&url)
+            .header("Authorization", format!("Bearer {access_token}"))
+            .header("ChatGPT-Account-Id", account_id)
+            .header("Accept", "application/json")
+            .send()
+            .await
+        {
+            Ok(response) => response,
+            Err(err) => {
+                errors.push(format!("{url} -> {}", format_reqwest_error(&err)));
+                continue;
+            }
+        };
+
+        let status = response.status();
+        if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+            should_refresh_auth = true;
+        }
+
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            invalid_account |= looks_like_invalid_account_text(&body);
+            errors.push(format!(
+                "{url} -> {status}: {}",
+                truncate_for_error(&body, 160)
+            ));
+            continue;
+        }
+
+        let mut payload: DailyWorkspaceUsageResponse = match response.json().await {
+            Ok(payload) => payload,
+            Err(err) => {
+                errors.push(format!("{url} -> 解析返回失败: {err}"));
+                continue;
+            }
+        };
+        payload.start_date = start_date.to_string();
+        payload.end_date = end_date.to_string();
+        return Ok(payload);
+    }
+
+    let preview = if errors.is_empty() {
+        "未命中任何候选地址".to_string()
+    } else {
+        errors.into_iter().take(2).collect::<Vec<_>>().join(" | ")
+    };
+
+    Err(UsageFetchError {
+        message: format!("请求每日用量接口失败: {preview}"),
+        should_refresh_auth,
+        invalid_account,
+    })
+}
+
 async fn refresh_auth_tokens(
     client: &reqwest::Client,
     auth: &mut AuthJson,
@@ -414,6 +513,7 @@ fn to_usage_window(window: UsageWindowRaw) -> RateLimitWindow {
 
     RateLimitWindow {
         remaining_percent,
+        used_percent: Some(window.used_percent),
         resets_at: Some(window.reset_at),
         window_duration_mins: Some(window.limit_window_seconds / 60),
     }
@@ -569,6 +669,80 @@ pub async fn read_account_rate_limits(
         Err(err) if err.invalid_account => Ok(invalid_account_response(invalid_account_reason(
             err.message,
         ))),
+        Err(err) => Err(err.message),
+    }
+}
+
+#[tauri::command]
+pub async fn read_account_daily_workspace_usage(
+    app: AppHandle,
+    account_id: String,
+    days: Option<u32>,
+) -> Result<DailyWorkspaceUsageResponse, String> {
+    let credentials_path = credentials_path(&app, &account_id)?;
+    let auth_json = fs::read_to_string(&credentials_path)
+        .await
+        .map_err(|_| format!("Credentials not found for account {}", account_id))?;
+    let mut auth: AuthJson =
+        serde_json::from_str(&auth_json).map_err(|e| format!("auth.json 解析失败: {e}"))?;
+
+    let settings = accounts::load_settings(app.clone()).await?;
+    let client = build_http_client(
+        &settings,
+        "codex-manager/1.0",
+        std::time::Duration::from_secs(18),
+    )?;
+
+    let now = chrono::Utc::now().date_naive();
+    let days_back = i64::from(days.unwrap_or(30).clamp(1, 120));
+    let start_date = (now - chrono::Duration::days(days_back)).to_string();
+    let end_date = (now + chrono::Duration::days(1)).to_string();
+
+    let mut resolved_account_id = match extract_account_id(&auth) {
+        Some(id) => id,
+        None => return Err("凭证中缺少账号标识，请重新登录该账号。".to_string()),
+    };
+
+    let current_access_token = access_token(&auth)?.to_string();
+    match request_daily_workspace_usage_payload(
+        &client,
+        &current_access_token,
+        &resolved_account_id,
+        &start_date,
+        &end_date,
+    )
+    .await
+    {
+        Ok(payload) => Ok(payload),
+        Err(err) if err.should_refresh_auth => {
+            if let Err(refresh_err) = refresh_auth_tokens(&client, &mut auth).await {
+                return Err(refresh_err.message);
+            }
+
+            resolved_account_id = extract_account_id(&auth)
+                .ok_or_else(|| "刷新后仍无法识别账号标识，请重新登录该账号。".to_string())?;
+            let serialized = serde_json::to_string_pretty(&auth)
+                .map_err(|e| format!("auth.json 序列化失败: {e}"))?;
+            write_text_atomic_async(credentials_path.clone(), serialized)
+                .await
+                .map_err(|e| format!("更新账号凭证失败: {e}"))?;
+            let refreshed_access_token = access_token(&auth)?.to_string();
+
+            request_daily_workspace_usage_payload(
+                &client,
+                &refreshed_access_token,
+                &resolved_account_id,
+                &start_date,
+                &end_date,
+            )
+            .await
+            .map_err(|refresh_err| {
+                format!(
+                    "{} | 刷新令牌后重试仍失败: {}",
+                    err.message, refresh_err.message
+                )
+            })
+        }
         Err(err) => Err(err.message),
     }
 }
